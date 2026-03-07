@@ -48,7 +48,8 @@
       background: var(--bg);
       color: var(--text);
       font-family: var(--font);
-      font-size: 16px;
+      font-size: 18px;
+      font-weight: 500;
       line-height: 1.6;
       min-height: 100dvh;
       -webkit-font-smoothing: antialiased;
@@ -104,7 +105,7 @@
 
     .brand-name {
       font-family: var(--serif);
-      font-size: 22px; font-weight: 500;
+      font-size: 24px; font-weight: 600;
       letter-spacing: 0.01em; line-height: 1.1;
     }
 
@@ -159,8 +160,8 @@
       border-radius: var(--radius-sm); padding: 12px 10px;
     }
 
-    .stat-val { font-family: var(--serif); font-size: 26px; font-weight: 400; color: var(--gold2); line-height: 1; margin-bottom: 3px; }
-    .stat-lbl { font-size: 10px; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; }
+    .stat-val { font-family: var(--serif); font-size: 30px; font-weight: 600; color: var(--gold2); line-height: 1; margin-bottom: 3px; }
+    .stat-lbl { font-size: 11px; font-weight: 600; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; }
 
     /* ── Sidebar nav ──────────────────────────────────────── */
     .sidebar-nav { margin-top: auto; padding-top: 18px; border-top: 1px solid var(--border); }
@@ -189,9 +190,9 @@
 
     .topbar-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 
-    .page-title { font-family: var(--serif); font-size: 36px; font-weight: 400; line-height: 1.05; letter-spacing: 0.01em; }
+    .page-title { font-family: var(--serif); font-size: 40px; font-weight: 600; line-height: 1.05; letter-spacing: 0.01em; }
     .page-title span { background: linear-gradient(135deg, var(--gold), var(--gold2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .page-sub { color: var(--text3); font-size: 13px; margin-top: 5px; letter-spacing: 0.02em; }
+    .page-sub { color: var(--text3); font-size: 15px; font-weight: 500; margin-top: 5px; letter-spacing: 0.02em; }
 
     .refresh-btn {
       display: flex; align-items: center; gap: 7px;
@@ -212,7 +213,7 @@
     .tab {
       display: flex; align-items: center; gap: 7px;
       padding: 11px 18px; border-radius: 10px 10px 0 0;
-      font-size: 13.5px; font-weight: 400; cursor: pointer;
+      font-size: 15px; font-weight: 600; cursor: pointer;
       border: none; background: none; font-family: var(--font);
       color: var(--text3); border-bottom: 2px solid transparent;
       transition: all .15s; position: relative; top: 1px; letter-spacing: 0.02em;
@@ -360,10 +361,10 @@
 
     /* Card footer */
     .card-footer { padding: 11px 13px; border-top: 1px solid var(--border); }
-    .card-name { font-size: 12.5px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.01em; }
+    .card-name { font-size: 14px; font-weight: 600; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.01em; }
     .card-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; }
-    .card-type { font-size: 10.5px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; }
-    .card-size { font-size: 10.5px; color: var(--text3); }
+    .card-type { font-size: 12px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; }
+    .card-size { font-size: 12px; font-weight: 500; color: var(--text3); }
 
     /* ── PDF list view ───────────────────────────────────── */
     .pdf-list { display: flex; flex-direction: column; gap: 10px; }
@@ -385,8 +386,8 @@
     }
 
     .pdf-row-info { flex: 1; min-width: 0; }
-    .pdf-row-name { font-size: 14px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.01em; }
-    .pdf-row-meta { font-size: 11.5px; color: var(--text3); margin-top: 2px; letter-spacing: 0.02em; }
+    .pdf-row-name { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.01em; }
+    .pdf-row-meta { font-size: 13px; font-weight: 500; color: var(--text3); margin-top: 2px; letter-spacing: 0.02em; }
 
     .pdf-row-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
@@ -580,6 +581,30 @@
     .toast.success { color: var(--green); }
     .toast.error { color: var(--danger); }
 
+    /* ── Sidebar credit ──────────────────────────────────── */
+    .sidebar-credit {
+      margin-top: auto; padding-top: 20px;
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; color: var(--text3);
+      letter-spacing: 0.06em; text-transform: uppercase;
+      border-top: 1px solid var(--border);
+      padding-top: 16px; margin-top: 24px;
+    }
+
+    .credit-name {
+      font-family: var(--serif); font-size: 14px;
+      font-weight: 600; font-style: italic;
+      color: var(--gold); letter-spacing: 0.04em;
+      text-transform: none;
+    }
+
+    .mob-by {
+      font-size: 10px; color: var(--gold);
+      font-family: var(--serif); font-style: italic;
+      font-weight: 500; letter-spacing: 0.04em;
+      margin-left: 2px; opacity: 0.85;
+    }
+
     /* ── Mobile header ───────────────────────────────────── */
     .mob-header {
       display: none; align-items: center; justify-content: space-between;
@@ -589,7 +614,7 @@
     }
 
     .mob-brand { display: flex; align-items: center; gap: 9px; }
-    .mob-brand-name { font-family: var(--serif); font-size: 19px; font-weight: 400; letter-spacing: 0.01em; }
+    .mob-brand-name { font-family: var(--serif); font-size: 21px; font-weight: 600; letter-spacing: 0.01em; }
 
     .mob-sync { display: flex; align-items: center; gap: 5px; background: none; border: 1px solid var(--border2); color: var(--text2); padding: 7px 14px; border-radius: 100px; font-family: var(--font); font-size: 12px; cursor: pointer; transition: all .2s; letter-spacing: 0.02em; }
     .mob-sync:hover { border-color: var(--gold); color: var(--gold2); }
@@ -603,7 +628,7 @@
       overflow-x: auto; -webkit-overflow-scrolling: touch;
     }
 
-    .mob-tabs .tab { border-radius: 0; font-size: 13px; padding: 10px 14px; }
+    .mob-tabs .tab { border-radius: 0; font-size: 14px; font-weight: 600; padding: 11px 16px; }
 
     /* ── FAB ─────────────────────────────────────────────── */
     .fab {
@@ -633,23 +658,27 @@
       .fab { display: grid; }
 
       .topbar { display: none; }
-      .content { padding: 14px 14px 90px; }
+      .content { padding: 14px 12px 100px; }
 
-      .gallery-grid { grid-template-columns: repeat(3, 1fr); gap: 2px; border-radius: var(--radius); overflow: hidden; }
+      .gallery-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
 
-      .media-card { border-radius: 0; border: none; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+      .media-card { border-radius: var(--radius-sm); }
       .media-card:hover { transform: none; box-shadow: none; }
-      .card-footer { display: none; }
-      .card-overlay { opacity: 1; background: linear-gradient(to top, rgba(8,8,16,0.65) 0%, transparent 55%); }
-      .ov-acts { justify-content: flex-end; gap: 4px; }
-      .ov-btn { flex: 0; padding: 7px; }
+      .card-footer { display: block; padding: 10px 12px; }
+      .card-name { font-size: 13px; }
+      .card-overlay { opacity: 1; background: linear-gradient(to top, rgba(8,8,16,0.7) 0%, transparent 50%); }
+      .ov-acts { justify-content: flex-end; gap: 5px; }
+      .ov-btn { flex: 0; padding: 8px 10px; }
       .ov-btn span { display: none; }
 
-      .pdf-row-actions .pdf-act span { display: none; }
+      .pdf-row-actions .pdf-act span { font-size: 13px; }
+      .pdf-row { padding: 14px 12px; }
+      .pdf-row-name { font-size: 15px; }
+      .pdf-row-meta { font-size: 12px; }
     }
 
     @media (max-width: 360px) {
-      .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+      .gallery-grid { grid-template-columns: repeat(1, 1fr); }
     }
   </style>
 </head>
@@ -738,6 +767,13 @@
         Refresh
       </button>
     </nav>
+
+    <!-- Credit -->
+    <div class="sidebar-credit">
+      <span>Crafted by</span>
+      <span class="credit-name">Ashraf</span>
+    </div>
+
   </aside>
 
   <!-- ══ Main ═════════════════════════════════════════════ -->
@@ -754,6 +790,7 @@
           </svg>
         </div>
         <span class="mob-brand-name">Media Vault</span>
+        <span class="mob-by">by Ashraf</span>
       </div>
       <button class="mob-sync" onclick="loadAll()">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
