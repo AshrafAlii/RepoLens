@@ -8,16 +8,22 @@ const githubRoutes = require("./routes/github");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Disable Vercel's default body size limit
+app.use((req, res, next) => {
+  req.setTimeout(120000);
+  next();
+});
+
 // In-memory storage — we never write to disk
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB max
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB (GitHub API hard limit)
   fileFilter: (req, file, cb) => {
-    const allowed = /image\/(jpeg|jpg|png|gif|webp)|video\/(mp4|webm|quicktime|mov)/;
+    const allowed = /image\/(jpeg|jpg|png|gif|webp)|video\/(mp4|webm|quicktime|mov)|application\/pdf/;
     if (allowed.test(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Only images and videos are allowed."));
+      cb(new Error("Only images, videos and PDFs are allowed."));
     }
   },
 });
