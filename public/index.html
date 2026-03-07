@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Media Vault</title>
+
+  <!-- Favicon inline SVG as data URI -->
+  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080810;
+      --surface: #111120;
+      --surface2: #181828;
+      --surface3: #1e1e32;
+      --border: rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.13);
+      --text: #f4f4f8;
+      --text2: #9898b0;
+      --text3: #5a5a78;
+      --gold: #c9a84c;
+      --gold2: #e8c97a;
+      --gold-glow: rgba(201,168,76,0.18);
+      --gold-dim: rgba(201,168,76,0.08);
+      --danger: #e05555;
+      --danger-dim: rgba(224,85,85,0.1);
+      --green: #4caf7d;
+      --pdf: #e07b45;
+      --pdf-dim: rgba(224,123,69,0.1);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --font: 'Geist', sans-serif;
+      --serif: 'Cormorant Garamond', serif;
+      --shadow: 0 24px 64px rgba(0,0,0,0.65);
+      --shadow-sm: 0 4px 20px rgba(0,0,0,0.4);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.6;
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; top: -250px; left: -250px;
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(201,168,76,0.05) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── Layout ─────────────────────────────────────────── */
+    .layout { display: flex; min-height: 100dvh; position: relative; z-index: 1; }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    .sidebar {
+      width: 272px; min-width: 272px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 28px 22px;
+      position: sticky; top: 0;
+      height: 100dvh; overflow-y: auto;
+    }
+
+    /* ── Brand / Logo ─────────────────────────────────────── */
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+
+    .logo-mark {
+      width: 44px; height: 44px; flex-shrink: 0;
+      background: linear-gradient(135deg, #1e1830 0%, #120f20 100%);
+      border-radius: 12px;
+      border: 1px solid rgba(201,168,76,0.3);
+      display: grid; place-items: center;
+      box-shadow: 0 4px 20px var(--gold-glow), inset 0 1px 0 rgba(201,168,76,0.1);
+      position: relative; overflow: hidden;
+    }
+
+    .logo-mark::before {
+      content: '';
+      position: absolute; inset: -1px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(201,168,76,0.15), transparent 60%);
+      pointer-events: none;
+    }
+
+    .logo-svg { width: 28px; height: 28px; position: relative; z-index: 1; }
+
+    .brand-text { display: flex; flex-direction: column; }
+
+    .brand-name {
+      font-family: var(--serif);
+      font-size: 22px; font-weight: 500;
+      letter-spacing: 0.01em; line-height: 1.1;
+    }
+
+    .brand-tagline {
+      font-size: 10.5px; color: var(--text3);
+      letter-spacing: 0.14em; text-transform: uppercase; margin-top: 3px;
+    }
+
+    /* ── Upload card ─────────────────────────────────────── */
+    .upload-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px; margin-bottom: 18px;
+      transition: border-color .2s;
+    }
+
+    .upload-card.drag-over { border-color: var(--gold); background: var(--gold-dim); }
+
+    .upload-zone {
+      border: 1.5px dashed var(--border2); border-radius: var(--radius-sm);
+      padding: 22px 16px; text-align: center; cursor: pointer;
+      position: relative; transition: all .2s;
+    }
+
+    .upload-zone:hover { border-color: var(--gold); background: var(--gold-dim); }
+
+    .upload-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
+    }
+
+    .uz-icon {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: var(--surface3); border: 1px solid var(--border2);
+      display: grid; place-items: center; margin: 0 auto 10px;
+    }
+
+    .uz-title { font-size: 14.5px; font-weight: 500; margin-bottom: 3px; }
+    .uz-hint { font-size: 12px; color: var(--text3); letter-spacing: 0.03em; }
+
+    .upload-progress { margin-top: 12px; display: none; }
+
+    .prog-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .prog-name { font-size: 11px; color: var(--text2); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .prog-pct { font-size: 11px; color: var(--gold); font-weight: 600; }
+    .prog-track { height: 2px; background: var(--surface3); border-radius: 100px; overflow: hidden; }
+    .prog-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold2)); border-radius: 100px; width: 0%; transition: width .3s; }
+
+    /* ── Stats ───────────────────────────────────────────── */
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
+
+    .stat-card {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 12px 10px;
+    }
+
+    .stat-val { font-family: var(--serif); font-size: 26px; font-weight: 400; color: var(--gold2); line-height: 1; margin-bottom: 3px; }
+    .stat-lbl { font-size: 10px; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; }
+
+    /* ── Sidebar nav ──────────────────────────────────────── */
+    .sidebar-nav { margin-top: auto; padding-top: 18px; border-top: 1px solid var(--border); }
+
+    .nav-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: var(--radius-sm);
+      color: var(--text3); font-size: 13.5px; cursor: pointer;
+      border: none; background: none; width: 100%; text-align: left;
+      font-family: var(--font); transition: all .15s; letter-spacing: 0.01em;
+    }
+
+    .nav-btn:hover { background: var(--surface2); color: var(--text); }
+    .nav-btn.active { background: var(--gold-dim); color: var(--gold2); }
+
+    /* ── Main area ───────────────────────────────────────── */
+    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+    /* ── Top bar with tabs ───────────────────────────────── */
+    .topbar {
+      padding: 28px 40px 0;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky; top: 0; z-index: 40;
+    }
+
+    .topbar-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+
+    .page-title { font-family: var(--serif); font-size: 36px; font-weight: 400; line-height: 1.05; letter-spacing: 0.01em; }
+    .page-title span { background: linear-gradient(135deg, var(--gold), var(--gold2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .page-sub { color: var(--text3); font-size: 13px; margin-top: 5px; letter-spacing: 0.02em; }
+
+    .refresh-btn {
+      display: flex; align-items: center; gap: 7px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      color: var(--text2); padding: 10px 18px;
+      border-radius: 100px; font-family: var(--font);
+      font-size: 13px; font-weight: 400; cursor: pointer;
+      transition: all .2s; white-space: nowrap; flex-shrink: 0; letter-spacing: 0.02em;
+    }
+
+    .refresh-btn:hover { border-color: var(--gold); color: var(--gold2); background: var(--gold-dim); }
+    .refresh-btn svg { transition: transform .4s; }
+    .refresh-btn:hover svg { transform: rotate(180deg); }
+
+    /* ── Tabs ────────────────────────────────────────────── */
+    .tabs { display: flex; gap: 2px; }
+
+    .tab {
+      display: flex; align-items: center; gap: 7px;
+      padding: 11px 18px; border-radius: 10px 10px 0 0;
+      font-size: 13.5px; font-weight: 400; cursor: pointer;
+      border: none; background: none; font-family: var(--font);
+      color: var(--text3); border-bottom: 2px solid transparent;
+      transition: all .15s; position: relative; top: 1px; letter-spacing: 0.02em;
+    }
+
+    .tab:hover { color: var(--text2); background: rgba(255,255,255,0.03); }
+
+    .tab.active { color: var(--text); border-bottom-color: var(--gold); }
+
+    .tab .tab-count {
+      background: var(--surface3); border-radius: 100px;
+      padding: 2px 7px; font-size: 10px; font-weight: 600;
+    }
+
+    .tab.active .tab-count { background: var(--gold-dim); color: var(--gold2); }
+    .tab[data-tab="pdf"].active { border-bottom-color: var(--pdf); }
+    .tab[data-tab="pdf"].active .tab-count { background: var(--pdf-dim); color: var(--pdf); }
+
+    /* ── Content area ────────────────────────────────────── */
+    .content { padding: 28px 40px 80px; flex: 1; }
+
+    /* ── Gallery grid ────────────────────────────────────── */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+      gap: 16px;
+    }
+
+    /* ── Media card ──────────────────────────────────────── */
+    .media-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden; cursor: pointer;
+      transition: transform .25s, box-shadow .25s, border-color .25s;
+      position: relative; animation: fadeUp .4s ease both;
+    }
+
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+    .media-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: var(--border2); }
+
+    .media-thumb { aspect-ratio: 1; overflow: hidden; background: var(--surface2); position: relative; }
+
+    .media-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .4s cubic-bezier(.25,.46,.45,.94); }
+    .media-card:hover .media-thumb img { transform: scale(1.07); }
+
+    /* Video placeholder */
+    .vid-ph {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      background: linear-gradient(135deg, var(--surface2), var(--surface3));
+    }
+
+    .vid-ph-icon {
+      width: 50px; height: 50px; border-radius: 50%;
+      background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.25);
+      display: grid; place-items: center; transition: transform .25s;
+    }
+
+    .media-card:hover .vid-ph-icon { transform: scale(1.1); }
+    .vid-ph span { font-size: 11px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* PDF placeholder */
+    .pdf-ph {
+      width: 100%; height: 100%;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      background: linear-gradient(135deg, #1a120a, #120c06);
+    }
+
+    .pdf-ph-icon {
+      width: 50px; height: 50px; border-radius: 12px;
+      background: rgba(224,123,69,0.12); border: 1px solid rgba(224,123,69,0.25);
+      display: grid; place-items: center; transition: transform .25s;
+    }
+
+    .media-card:hover .pdf-ph-icon { transform: scale(1.1); }
+    .pdf-ph span { font-size: 11px; color: var(--text3); letter-spacing: 0.08em; text-transform: uppercase; }
+
+    /* ── Overlay actions ──────────────────────────────────── */
+    .card-overlay {
+      position: absolute; inset: 0;
+      background: linear-gradient(to top, rgba(8,8,16,0.88) 0%, transparent 55%);
+      opacity: 0; transition: opacity .25s;
+      display: flex; align-items: flex-end; padding: 12px;
+    }
+
+    .media-card:hover .card-overlay { opacity: 1; }
+
+    .ov-acts { display: flex; gap: 7px; width: 100%; }
+
+    .ov-btn {
+      flex: 1; padding: 8px 4px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.07); backdrop-filter: blur(8px);
+      color: #fff; font-family: var(--font); font-size: 12px; font-weight: 500;
+      cursor: pointer; transition: all .15s;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+    }
+
+    .ov-btn:hover { background: rgba(255,255,255,0.16); }
+    .ov-btn.del:hover { background: var(--danger); border-color: var(--danger); }
+
+    /* Type badge */
+    .tbadge {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(8,8,16,0.72); backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+      padding: 3px 8px; font-size: 9px; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text2); font-weight: 600;
+    }
+
+    .tbadge.vid { color: var(--gold2); border-color: rgba(201,168,76,0.3); }
+    .tbadge.pdf-badge { color: var(--pdf); border-color: rgba(224,123,69,0.35); }
+
+    /* Card footer */
+    .card-footer { padding: 11px 13px; border-top: 1px solid var(--border); }
+    .card-name { font-size: 12.5px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.01em; }
+    .card-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 3px; }
+    .card-type { font-size: 10.5px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; }
+    .card-size { font-size: 10.5px; color: var(--text3); }
+
+    /* ── PDF list view ───────────────────────────────────── */
+    .pdf-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .pdf-row {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 14px 16px;
+      display: flex; align-items: center; gap: 14px;
+      transition: border-color .2s, background .2s;
+      animation: fadeUp .3s ease both;
+    }
+
+    .pdf-row:hover { border-color: rgba(224,123,69,0.35); background: rgba(224,123,69,0.03); }
+
+    .pdf-row-icon {
+      width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+      background: var(--pdf-dim); border: 1px solid rgba(224,123,69,0.2);
+      display: grid; place-items: center;
+    }
+
+    .pdf-row-info { flex: 1; min-width: 0; }
+    .pdf-row-name { font-size: 14px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.01em; }
+    .pdf-row-meta { font-size: 11.5px; color: var(--text3); margin-top: 2px; letter-spacing: 0.02em; }
+
+    .pdf-row-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    .pdf-act {
+      display: flex; align-items: center; gap: 5px;
+      padding: 7px 13px; border-radius: 8px;
+      border: 1px solid var(--border2); background: none;
+      color: var(--text2); font-family: var(--font);
+      font-size: 12px; font-weight: 400; cursor: pointer;
+      transition: all .15s; white-space: nowrap; letter-spacing: 0.02em;
+    }
+
+    .pdf-act:hover { color: var(--text); background: var(--surface2); }
+    .pdf-act.del:hover { background: var(--danger-dim); border-color: var(--danger); color: var(--danger); }
+    .pdf-act.dl:hover { background: var(--gold-dim); border-color: var(--gold); color: var(--gold2); }
+
+    /* ── Skeleton ────────────────────────────────────────── */
+    .skel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .skel-thumb { aspect-ratio: 1; background: var(--surface2); position: relative; overflow: hidden; }
+    .skel-foot { padding: 11px 13px; border-top: 1px solid var(--border); }
+    .skel-line { height: 10px; background: var(--surface3); border-radius: 100px; margin-bottom: 5px; position: relative; overflow: hidden; }
+    .skel-line.s { width: 55%; }
+
+    .skel-thumb::after, .skel-line::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent);
+      animation: shimmer 1.6s infinite;
+    }
+
+    @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+    .skel-pdf-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
+    .skel-pdf-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--surface2); flex-shrink: 0; position: relative; overflow: hidden; }
+    .skel-pdf-icon::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent); animation: shimmer 1.6s infinite; }
+    .skel-pdf-info { flex: 1; }
+
+    /* ── Empty state ──────────────────────────────────────── */
+    .empty {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 80px 20px; text-align: center;
+    }
+
+    .empty-ico {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: var(--surface2); border: 1px solid var(--border2);
+      display: grid; place-items: center; margin-bottom: 18px;
+    }
+
+    .empty-title { font-family: var(--serif); font-size: 24px; font-weight: 400; color: var(--text2); margin-bottom: 7px; letter-spacing: 0.01em; }
+    .empty-desc { font-size: 14px; color: var(--text3); max-width: 240px; letter-spacing: 0.02em; }
+
+    /* ── Modal ───────────────────────────────────────────── */
+    .modal {
+      position: fixed; inset: 0;
+      background: rgba(4,4,12,0.96); backdrop-filter: blur(14px);
+      z-index: 200; display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+
+    .modal.open { display: flex; animation: fadeIn .2s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .modal-bar {
+      position: absolute; top: 0; left: 0; right: 0;
+      padding: 16px 22px; display: flex; align-items: center; justify-content: space-between;
+      background: linear-gradient(to bottom, rgba(4,4,12,0.88), transparent);
+    }
+
+    .modal-fname { font-size: 13px; color: var(--text2); max-width: calc(100% - 200px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0.02em; }
+
+    .modal-acts { display: flex; gap: 8px; }
+
+    .mbtn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 15px; border-radius: 100px;
+      border: 1px solid var(--border2); background: var(--surface2);
+      color: var(--text2); font-family: var(--font);
+      font-size: 12.5px; font-weight: 400; cursor: pointer; transition: all .15s; letter-spacing: 0.02em;
+    }
+
+    .mbtn:hover { color: var(--text); background: var(--surface3); }
+    .mbtn.del:hover { background: var(--danger-dim); border-color: var(--danger); color: var(--danger); }
+    .mbtn.download:hover { background: var(--gold-dim); border-color: var(--gold); color: var(--gold2); }
+
+    .modal-media { max-width: min(92vw, 960px); max-height: calc(100dvh - 120px); display: flex; align-items: center; justify-content: center; }
+    .modal-media img { max-width: 100%; max-height: calc(100dvh - 120px); border-radius: var(--radius); box-shadow: var(--shadow); object-fit: contain; animation: zoomIn .25s cubic-bezier(.34,1.56,.64,1); }
+    .modal-media video { max-width: 100%; max-height: calc(100dvh - 120px); border-radius: var(--radius); box-shadow: var(--shadow); outline: none; animation: zoomIn .25s cubic-bezier(.34,1.56,.64,1); }
+
+    @keyframes zoomIn { from { transform: scale(0.93); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    /* ── Confirm dialog ───────────────────────────────────── */
+    .confirm-overlay {
+      position: fixed; inset: 0;
+      background: rgba(4,4,12,0.82); backdrop-filter: blur(10px);
+      z-index: 300; display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+
+    .confirm-overlay.open { display: flex; }
+
+    .confirm-box { background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius); padding: 26px; max-width: 340px; width: 100%; box-shadow: var(--shadow); animation: zoomIn .2s ease; }
+    .confirm-title { font-family: var(--serif); font-size: 22px; font-weight: 400; margin-bottom: 8px; letter-spacing: 0.01em; }
+    .confirm-desc { font-size: 14px; color: var(--text2); margin-bottom: 24px; line-height: 1.6; }
+    .confirm-fname { color: var(--text); font-weight: 500; }
+    .confirm-btns { display: flex; gap: 10px; }
+
+    .c-cancel { flex: 1; padding: 11px; border-radius: var(--radius-sm); border: 1px solid var(--border2); background: none; color: var(--text2); font-family: var(--font); font-size: 14px; font-weight: 400; cursor: pointer; transition: all .15s; letter-spacing: 0.02em; }
+    .c-cancel:hover { background: var(--surface3); color: var(--text); }
+    .c-del { flex: 1; padding: 11px; border-radius: var(--radius-sm); border: none; background: var(--danger); color: #fff; font-family: var(--font); font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity .15s; letter-spacing: 0.02em; }
+    .c-del:hover { opacity: .85; }
+
+    /* ── Toast ───────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 26px; left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 100px; padding: 12px 24px;
+      font-size: 13.5px; font-weight: 400; white-space: nowrap;
+      transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+      z-index: 999; pointer-events: none;
+      box-shadow: var(--shadow-sm); letter-spacing: 0.02em;
+    }
+
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { color: var(--green); }
+    .toast.error { color: var(--danger); }
+
+    /* ── Mobile header ───────────────────────────────────── */
+    .mob-header {
+      display: none; align-items: center; justify-content: space-between;
+      padding: 13px 16px; background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 50;
+    }
+
+    .mob-brand { display: flex; align-items: center; gap: 9px; }
+    .mob-brand-name { font-family: var(--serif); font-size: 19px; font-weight: 400; letter-spacing: 0.01em; }
+
+    .mob-sync { display: flex; align-items: center; gap: 5px; background: none; border: 1px solid var(--border2); color: var(--text2); padding: 7px 14px; border-radius: 100px; font-family: var(--font); font-size: 12px; cursor: pointer; transition: all .2s; letter-spacing: 0.02em; }
+    .mob-sync:hover { border-color: var(--gold); color: var(--gold2); }
+
+    /* Mobile tabs */
+    .mob-tabs {
+      display: none; gap: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+    }
+
+    .mob-tabs .tab { border-radius: 0; font-size: 13px; padding: 10px 14px; }
+
+    /* ── FAB ─────────────────────────────────────────────── */
+    .fab {
+      display: none; position: fixed; bottom: 22px; right: 22px;
+      width: 56px; height: 56px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold), var(--gold2));
+      border: none; box-shadow: 0 8px 32px rgba(201,168,76,0.4);
+      cursor: pointer; place-items: center; z-index: 50;
+      transition: transform .2s;
+    }
+
+    .fab:hover { transform: scale(1.08); }
+    .fab input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; border-radius: 50%; }
+
+    /* ── Responsive ──────────────────────────────────────── */
+    @media (max-width: 960px) {
+      .sidebar { width: 240px; min-width: 240px; padding: 22px 16px; }
+      .topbar { padding: 22px 28px 0; }
+      .content { padding: 22px 28px 80px; }
+      .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    }
+
+    @media (max-width: 680px) {
+      .sidebar { display: none; }
+      .mob-header { display: flex; }
+      .mob-tabs { display: flex; }
+      .fab { display: grid; }
+
+      .topbar { display: none; }
+      .content { padding: 14px 14px 90px; }
+
+      .gallery-grid { grid-template-columns: repeat(3, 1fr); gap: 2px; border-radius: var(--radius); overflow: hidden; }
+
+      .media-card { border-radius: 0; border: none; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+      .media-card:hover { transform: none; box-shadow: none; }
+      .card-footer { display: none; }
+      .card-overlay { opacity: 1; background: linear-gradient(to top, rgba(8,8,16,0.65) 0%, transparent 55%); }
+      .ov-acts { justify-content: flex-end; gap: 4px; }
+      .ov-btn { flex: 0; padding: 7px; }
+      .ov-btn span { display: none; }
+
+      .pdf-row-actions .pdf-act span { display: none; }
+    }
+
+    @media (max-width: 360px) {
+      .gallery-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ══ Sidebar ══════════════════════════════════════════ -->
+  <aside class="sidebar">
+
+    <!-- Brand with SVG logo -->
+    <div class="brand">
+      <div class="logo-mark">
+        <svg class="logo-svg" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Outer ring dashes -->
+          <circle cx="14" cy="14" r="12.5" stroke="#c9a84c" stroke-width="0.75" stroke-dasharray="2.2 4.4" stroke-linecap="round" opacity="0.55"/>
+          <!-- Frame -->
+          <rect x="5" y="5" width="18" height="18" rx="3.5" stroke="#c9a84c" stroke-width="1.2" fill="none" opacity="0.9"/>
+          <!-- Mountain -->
+          <polyline points="7,19 11.5,12.5 15,16.5 17.5,13.5 21,19" stroke="#e8c97a" stroke-width="1.5" stroke-linejoin="round" fill="none"/>
+          <!-- Sun -->
+          <circle cx="9.5" cy="10.5" r="1.6" fill="#c9a84c"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">Media Vault</div>
+        <div class="brand-tagline">GitHub Storage</div>
+      </div>
+    </div>
+
+    <!-- Upload -->
+    <div class="upload-card" id="uploadCard">
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept="image/*,video/*,.pdf" multiple />
+        <div class="uz-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <div class="uz-title">Upload files</div>
+        <div class="uz-hint">Photos · Videos · PDFs</div>
+      </div>
+      <div class="upload-progress" id="uploadProgress">
+        <div class="prog-row">
+          <span class="prog-name" id="progName">Uploading…</span>
+          <span class="prog-pct" id="progPct">0%</span>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill" id="progFill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-val" id="statPhotos">—</div>
+        <div class="stat-lbl">Photos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="statVideos">—</div>
+        <div class="stat-lbl">Videos</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="statPdfs">—</div>
+        <div class="stat-lbl">PDFs</div>
+      </div>
+    </div>
+
+    <!-- Nav -->
+    <nav class="sidebar-nav">
+      <button class="nav-btn active">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        All Media
+      </button>
+      <button class="nav-btn" onclick="loadAll()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        Refresh
+      </button>
+    </nav>
+  </aside>
+
+  <!-- ══ Main ═════════════════════════════════════════════ -->
+  <div class="main">
+
+    <!-- Mobile top bar -->
+    <div class="mob-header">
+      <div class="mob-brand">
+        <div class="logo-mark" style="width:34px;height:34px;border-radius:9px;">
+          <svg viewBox="0 0 28 28" fill="none" style="width:20px;height:20px;position:relative;z-index:1;">
+            <rect x="5" y="5" width="18" height="18" rx="3.5" stroke="#c9a84c" stroke-width="1.2" fill="none"/>
+            <polyline points="7,19 11.5,12.5 15,16.5 17.5,13.5 21,19" stroke="#e8c97a" stroke-width="1.5" stroke-linejoin="round" fill="none"/>
+            <circle cx="9.5" cy="10.5" r="1.6" fill="#c9a84c"/>
+          </svg>
+        </div>
+        <span class="mob-brand-name">Media Vault</span>
+      </div>
+      <button class="mob-sync" onclick="loadAll()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+        Sync
+      </button>
+    </div>
+
+    <!-- Mobile tabs -->
+    <div class="mob-tabs" id="mobTabs">
+      <button class="tab active" data-tab="all">
+        All <span class="tab-count" id="mob-cnt-all">0</span>
+      </button>
+      <button class="tab" data-tab="image">
+        Photos <span class="tab-count" id="mob-cnt-image">0</span>
+      </button>
+      <button class="tab" data-tab="video">
+        Videos <span class="tab-count" id="mob-cnt-video">0</span>
+      </button>
+      <button class="tab" data-tab="pdf">
+        PDFs <span class="tab-count" id="mob-cnt-pdf">0</span>
+      </button>
+    </div>
+
+    <!-- Desktop top bar with tabs -->
+    <div class="topbar">
+      <div class="topbar-row">
+        <div>
+          <h1 class="page-title">Your <span>Gallery</span></h1>
+          <p class="page-sub" id="pageSub">Loading media…</p>
+        </div>
+        <button class="refresh-btn" onclick="loadAll()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+
+      <!-- Tabs row -->
+      <div class="tabs" id="desktopTabs">
+        <button class="tab active" data-tab="all">
+          All <span class="tab-count" id="dt-cnt-all">0</span>
+        </button>
+        <button class="tab" data-tab="image">
+          Photos <span class="tab-count" id="dt-cnt-image">0</span>
+        </button>
+        <button class="tab" data-tab="video">
+          Videos <span class="tab-count" id="dt-cnt-video">0</span>
+        </button>
+        <button class="tab" data-tab="pdf">
+          PDFs <span class="tab-count" id="dt-cnt-pdf">0</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content" id="contentArea"></div>
+  </div>
+</div>
+
+<!-- Mobile FAB -->
+<label class="fab">
+  <input type="file" id="mobInput" accept="image/*,video/*,.pdf" multiple />
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a1200" stroke-width="2.5">
+    <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+  </svg>
+</label>
+
+<!-- Preview Modal -->
+<div class="modal" id="modal">
+  <div class="modal-bar">
+    <span class="modal-fname" id="modalFname"></span>
+    <div class="modal-acts">
+      <button class="mbtn download" id="modalDownload">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Download
+      </button>
+      <button class="mbtn del" id="modalDel">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          <path d="M10 11v6"/><path d="M14 11v6"/>
+        </svg>
+        Delete
+      </button>
+      <button class="mbtn" id="modalClose">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+        Close
+      </button>
+    </div>
+  </div>
+  <div class="modal-media" id="modalMedia"></div>
+</div>
+
+<!-- Confirm delete -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <div class="confirm-title">Delete file?</div>
+    <p class="confirm-desc">
+      <span class="confirm-fname" id="cFname"></span> will be permanently removed from your GitHub repository.
+    </p>
+    <div class="confirm-btns">
+      <button class="c-cancel" id="cCancel">Cancel</button>
+      <button class="c-del" id="cConfirm">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── State ──────────────────────────────────────────────
+  let allMedia = [];
+  let activeTab = 'all';
+  let pendingDel = null;
+  let modalIdx = null;
+
+  // ── Helpers ────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+
+  function fmt(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  // ── Toast ──────────────────────────────────────────────
+  let toastT;
+  function toast(msg, type = 'success') {
+    clearTimeout(toastT);
+    const el = $('toast');
+    el.textContent = msg;
+    el.className = `toast show ${type}`;
+    toastT = setTimeout(() => el.classList.remove('show'), 3200);
+  }
+
+  // ── Upload ─────────────────────────────────────────────
+  $('fileInput').addEventListener('change', e => doUpload(e.target.files));
+  $('mobInput').addEventListener('change', e => doUpload(e.target.files));
+
+  const uploadZone = $('uploadZone');
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); $('uploadCard').classList.add('drag-over'); });
+  uploadZone.addEventListener('dragleave', () => $('uploadCard').classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', e => { e.preventDefault(); $('uploadCard').classList.remove('drag-over'); doUpload(e.dataTransfer.files); });
+
+  async function doUpload(files) {
+    if (!files?.length) return;
+    const total = files.length;
+    $('uploadProgress').style.display = 'block';
+    $('fileInput').disabled = true;
+
+    for (let i = 0; i < total; i++) {
+      const file = files[i];
+      const pct = Math.round((i / total) * 100);
+      $('progFill').style.width = pct + '%';
+      $('progPct').textContent = pct + '%';
+      $('progName').textContent = file.name;
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+      } catch (err) {
+        toast('✗ ' + err.message, 'error');
+      }
+    }
+
+    $('progFill').style.width = '100%';
+    $('progPct').textContent = '100%';
+    $('progName').textContent = 'Done!';
+    setTimeout(() => {
+      $('uploadProgress').style.display = 'none';
+      $('progFill').style.width = '0%';
+      $('fileInput').disabled = false;
+      $('fileInput').value = '';
+      $('mobInput').value = '';
+    }, 700);
+
+    toast(`✓ ${total} file${total > 1 ? 's' : ''} uploaded`);
+    loadAll();
+  }
+
+  // ── Load all media ─────────────────────────────────────
+  async function loadAll() {
+    renderSkeletons();
+    try {
+      const res = await fetch('/api/media');
+      if (!res.ok) throw new Error('Failed to load');
+      allMedia = await res.json();
+      updateCounts();
+      renderTab(activeTab);
+    } catch (err) {
+      $('contentArea').innerHTML = '';
+      $('pageSub').textContent = 'Could not load media';
+      toast('✗ ' + err.message, 'error');
+    }
+  }
+
+  function updateCounts() {
+    const total   = allMedia.length;
+    const photos  = allMedia.filter(m => m.type === 'image').length;
+    const videos  = allMedia.filter(m => m.type === 'video').length;
+    const pdfs    = allMedia.filter(m => m.type === 'pdf').length;
+
+    $('statPhotos').textContent = photos;
+    $('statVideos').textContent = videos;
+    $('statPdfs').textContent   = pdfs;
+
+    $('pageSub').textContent = `${total} file${total !== 1 ? 's' : ''} stored in your vault`;
+
+    // Desktop tabs
+    $('dt-cnt-all').textContent   = total;
+    $('dt-cnt-image').textContent = photos;
+    $('dt-cnt-video').textContent = videos;
+    $('dt-cnt-pdf').textContent   = pdfs;
+
+    // Mobile tabs
+    $('mob-cnt-all').textContent   = total;
+    $('mob-cnt-image').textContent = photos;
+    $('mob-cnt-video').textContent = videos;
+    $('mob-cnt-pdf').textContent   = pdfs;
+  }
+
+  // ── Tabs ───────────────────────────────────────────────
+  function setTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    renderTab(tab);
+  }
+
+  document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+
+  // ── Render by tab ──────────────────────────────────────
+  function renderTab(tab) {
+    const items = tab === 'all' ? allMedia : allMedia.filter(m => m.type === tab);
+
+    if (tab === 'pdf') {
+      renderPDFList(items);
+    } else {
+      renderGrid(items);
+    }
+  }
+
+  // ── Skeleton ───────────────────────────────────────────
+  function renderSkeletons() {
+    $('contentArea').innerHTML = `<div class="gallery-grid">${
+      Array.from({ length: 12 }).map(() => `
+        <div class="skel">
+          <div class="skel-thumb"></div>
+          <div class="skel-foot">
+            <div class="skel-line"></div>
+            <div class="skel-line s"></div>
+          </div>
+        </div>`).join('')
+    }</div>`;
+  }
+
+  // ── Grid view (photos + videos) ────────────────────────
+  function renderGrid(items) {
+    const content = $('contentArea');
+
+    if (!items.length) {
+      content.innerHTML = emptyState(activeTab);
+      return;
+    }
+
+    content.innerHTML = `<div class="gallery-grid">${
+      items.map((item, idx) => `
+        <div class="media-card" data-idx="${idx}" style="animation-delay:${Math.min(idx*0.04,0.5)}s">
+          <div class="media-thumb">
+            ${item.type === 'video'
+              ? `<div class="vid-ph">
+                  <div class="vid-ph-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2">
+                      <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                  </div>
+                  <span>Video</span>
+                </div>`
+              : `<img src="${item.download_url}" alt="${item.name}" loading="lazy" />`
+            }
+            <span class="tbadge ${item.type === 'video' ? 'vid' : ''}">${item.type === 'video' ? '▶ Video' : '⬜ Photo'}</span>
+            <div class="card-overlay">
+              <div class="ov-acts">
+                <button class="ov-btn view-btn" data-idx="${idx}">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  </svg>
+                  <span>View</span>
+                </button>
+                <button class="ov-btn dl-btn" data-url="${item.download_url}" data-name="${item.name}">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span>Save</span>
+                </button>
+                <button class="ov-btn del del-btn" data-idx="${idx}">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  </svg>
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="card-name">${item.name}</div>
+            <div class="card-meta">
+              <span class="card-type">${item.type}</span>
+              <span class="card-size">${fmt(item.size)}</span>
+            </div>
+          </div>
+        </div>`).join('')
+    }</div>`;
+
+    content.querySelectorAll('.view-btn').forEach(b =>
+      b.addEventListener('click', e => { e.stopPropagation(); openModal(+b.dataset.idx, items); })
+    );
+    content.querySelectorAll('.dl-btn').forEach(b =>
+      b.addEventListener('click', e => { e.stopPropagation(); downloadFile(b.dataset.url, b.dataset.name); })
+    );
+    content.querySelectorAll('.del-btn').forEach(b =>
+      b.addEventListener('click', e => { e.stopPropagation(); openConfirm(+b.dataset.idx, items); })
+    );
+    content.querySelectorAll('.media-card').forEach(c =>
+      c.addEventListener('click', () => openModal(+c.dataset.idx, items))
+    );
+  }
+
+  // ── PDF list view ──────────────────────────────────────
+  function renderPDFList(items) {
+    const content = $('contentArea');
+
+    if (!items.length) {
+      content.innerHTML = emptyState('pdf');
+      return;
+    }
+
+    content.innerHTML = `<div class="pdf-list">${
+      items.map((item, idx) => `
+        <div class="pdf-row" style="animation-delay:${Math.min(idx*0.05,0.5)}s">
+          <div class="pdf-row-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pdf)" stroke-width="1.8">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="9" y1="13" x2="15" y2="13"/>
+              <line x1="9" y1="17" x2="15" y2="17"/>
+            </svg>
+          </div>
+          <div class="pdf-row-info">
+            <div class="pdf-row-name">${item.name}</div>
+            <div class="pdf-row-meta">${fmt(item.size)} · PDF Document</div>
+          </div>
+          <div class="pdf-row-actions">
+            <button class="pdf-act dl" data-url="${item.download_url}" data-name="${item.name}">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <span>Download</span>
+            </button>
+            <a class="pdf-act" href="${item.download_url}" target="_blank" rel="noopener">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              <span>Open</span>
+            </a>
+            <button class="pdf-act del pdf-del-btn" data-idx="${idx}">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              </svg>
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>`).join('')
+    }</div>`;
+
+    content.querySelectorAll('.pdf-del-btn').forEach(b =>
+      b.addEventListener('click', () => openConfirm(+b.dataset.idx, items))
+    );
+    content.querySelectorAll('.pdf-act.dl').forEach(b =>
+      b.addEventListener('click', () => downloadFile(b.dataset.url, b.dataset.name))
+    );
+  }
+
+  // ── "All" tab: show photos grid + pdf list ─────────────
+  // Override renderTab for "all" to show both sections
+  const _origRenderTab = renderTab;
+
+  function renderTab(tab) {
+    if (tab !== 'all') {
+      const items = allMedia.filter(m => m.type === tab);
+      if (tab === 'pdf') renderPDFList(items);
+      else renderGrid(items);
+      return;
+    }
+
+    // All tab: show media grid then PDF section
+    const mediaItems = allMedia.filter(m => m.type !== 'pdf');
+    const pdfItems   = allMedia.filter(m => m.type === 'pdf');
+    const content = $('contentArea');
+
+    if (!allMedia.length) {
+      content.innerHTML = emptyState('all');
+      return;
+    }
+
+    // Render media section
+    let html = '';
+
+    if (mediaItems.length) {
+      html += `<div class="gallery-grid" style="margin-bottom: ${pdfItems.length ? '36px' : '0'}">${
+        mediaItems.map((item, idx) => `
+          <div class="media-card" data-src="media" data-idx="${idx}" style="animation-delay:${Math.min(idx*0.04,0.5)}s">
+            <div class="media-thumb">
+              ${item.type === 'video'
+                ? `<div class="vid-ph">
+                    <div class="vid-ph-icon">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                      </svg>
+                    </div>
+                    <span>Video</span>
+                   </div>`
+                : `<img src="${item.download_url}" alt="${item.name}" loading="lazy" />`
+              }
+              <span class="tbadge ${item.type === 'video' ? 'vid' : ''}">${item.type === 'video' ? '▶ Video' : '⬜ Photo'}</span>
+              <div class="card-overlay">
+                <div class="ov-acts">
+                  <button class="ov-btn view-btn" data-src="media" data-idx="${idx}">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                    <span>View</span>
+                  </button>
+                  <button class="ov-btn dl-btn" data-url="${item.download_url}" data-name="${item.name}">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span>Save</span>
+                  </button>
+                  <button class="ov-btn del del-btn" data-src="media" data-idx="${idx}">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    </svg>
+                    <span>Delete</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="card-footer">
+              <div class="card-name">${item.name}</div>
+              <div class="card-meta">
+                <span class="card-type">${item.type}</span>
+                <span class="card-size">${fmt(item.size)}</span>
+              </div>
+            </div>
+          </div>`).join('')
+      }</div>`;
+    }
+
+    // PDF section
+    if (pdfItems.length) {
+      html += `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+          <span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);font-family:var(--font);">Documents</span>
+          <div style="flex:1;height:1px;background:var(--border);"></div>
+          <span style="font-size:10px;color:var(--pdf);background:var(--pdf-dim);border:1px solid rgba(224,123,69,0.2);border-radius:100px;padding:2px 8px;">${pdfItems.length} PDF${pdfItems.length > 1 ? 's' : ''}</span>
+        </div>
+        <div class="pdf-list">${
+          pdfItems.map((item, idx) => `
+            <div class="pdf-row" style="animation-delay:${Math.min(idx*0.05,0.4)}s">
+              <div class="pdf-row-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pdf)" stroke-width="1.8">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="9" y1="13" x2="15" y2="13"/>
+                  <line x1="9" y1="17" x2="15" y2="17"/>
+                </svg>
+              </div>
+              <div class="pdf-row-info">
+                <div class="pdf-row-name">${item.name}</div>
+                <div class="pdf-row-meta">${fmt(item.size)} · PDF Document</div>
+              </div>
+              <div class="pdf-row-actions">
+                <button class="pdf-act dl all-pdf-dl" data-url="${item.download_url}" data-name="${item.name}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span>Download</span>
+                </button>
+                <a class="pdf-act" href="${item.download_url}" target="_blank" rel="noopener">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                  <span>Open</span>
+                </a>
+                <button class="pdf-act del pdf-del-btn" data-src="pdf" data-idx="${idx}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  </svg>
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>`).join('')
+        }</div>`;
+    }
+
+    content.innerHTML = html;
+
+    // Bind events
+    content.querySelectorAll('.view-btn').forEach(b => {
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        openModal(+b.dataset.idx, mediaItems);
+      });
+    });
+
+    content.querySelectorAll('.del-btn').forEach(b => {
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        openConfirm(+b.dataset.idx, mediaItems);
+      });
+    });
+
+    content.querySelectorAll('.dl-btn').forEach(b => {
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        downloadFile(b.dataset.url, b.dataset.name);
+      });
+    });
+
+    content.querySelectorAll('.media-card').forEach(c =>
+      c.addEventListener('click', () => openModal(+c.dataset.idx, mediaItems))
+    );
+
+    content.querySelectorAll('.pdf-del-btn').forEach(b =>
+      b.addEventListener('click', () => openConfirm(+b.dataset.idx, pdfItems))
+    );
+
+    content.querySelectorAll('.all-pdf-dl').forEach(b =>
+      b.addEventListener('click', () => downloadFile(b.dataset.url, b.dataset.name))
+    );
+  }
+
+  // ── Empty states ───────────────────────────────────────
+  function emptyState(tab) {
+    const msgs = {
+      all:   ['Nothing here yet', 'Upload photos, videos, or PDFs to get started.'],
+      image: ['No photos yet', 'Upload some images to see them here.'],
+      video: ['No videos yet', 'Upload video files to see them here.'],
+      pdf:   ['No documents yet', 'Upload PDF files to see them here.'],
+    };
+    const [title, desc] = msgs[tab] || msgs.all;
+    return `<div class="empty">
+      <div class="empty-ico">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5">
+          <rect x="3" y="3" width="18" height="18" rx="3"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </div>
+      <div class="empty-title">${title}</div>
+      <p class="empty-desc">${desc}</p>
+    </div>`;
+  }
+
+  // ── Download ───────────────────────────────────────────
+  async function downloadFile(url, filename) {
+    try {
+      toast('⬇ Downloading…');
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Download failed');
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      toast('✓ Downloaded: ' + filename);
+    } catch (err) {
+      toast('✗ ' + err.message, 'error');
+    }
+  }
+
+  // ── Modal ──────────────────────────────────────────────
+  function openModal(idx, items) {
+    const item = items[idx];
+    if (!item) return;
+    modalIdx = idx;
+
+    $('modalFname').textContent = item.name;
+    $('modalMedia').innerHTML = item.type === 'video'
+      ? `<video controls autoplay playsinline><source src="${item.download_url}" /></video>`
+      : `<img src="${item.download_url}" alt="${item.name}" />`;
+
+    // Store reference so delete button works
+    $('modal').dataset.itemIdx = idx;
+    $('modal').dataset.src = JSON.stringify(item);
+    $('modal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeModal() {
+    $('modal').classList.remove('open');
+    $('modalMedia').innerHTML = '';
+    document.body.style.overflow = '';
+  }
+
+  $('modalClose').addEventListener('click', closeModal);
+  $('modal').addEventListener('click', e => { if (e.target === $('modal')) closeModal(); });
+
+  $('modalDownload').addEventListener('click', () => {
+    const item = JSON.parse($('modal').dataset.src || 'null');
+    if (item) downloadFile(item.download_url, item.name);
+  });
+
+  $('modalDel').addEventListener('click', () => {
+    const item = JSON.parse($('modal').dataset.src || 'null');
+    if (!item) return;
+    closeModal();
+    // Find in allMedia
+    const idx = allMedia.findIndex(m => m.sha === item.sha);
+    if (idx !== -1) openConfirm(idx, allMedia);
+  });
+
+  // ── Confirm delete ──────────────────────────────────────
+  let pendingItem = null;
+
+  function openConfirm(idx, list) {
+    pendingItem = list[idx];
+    $('cFname').textContent = pendingItem.name;
+    $('confirmOverlay').classList.add('open');
+  }
+
+  function closeConfirm() { $('confirmOverlay').classList.remove('open'); pendingItem = null; }
+
+  $('cCancel').addEventListener('click', closeConfirm);
+  $('confirmOverlay').addEventListener('click', e => { if (e.target === $('confirmOverlay')) closeConfirm(); });
+
+  $('cConfirm').addEventListener('click', async () => {
+    if (!pendingItem) return;
+    const item = pendingItem;
+    closeConfirm();
+    try {
+      const res = await fetch('/api/media', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: item.path, sha: item.sha }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+      toast('✓ File deleted');
+      loadAll();
+    } catch (err) {
+      toast('✗ ' + err.message, 'error');
+    }
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeModal(); closeConfirm(); }
+  });
+
+  // ── Init ───────────────────────────────────────────────
+  loadAll();
+</script>
+</body>
+</html>

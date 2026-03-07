@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Outer rounded square -->
+  <rect width="64" height="64" rx="16" fill="#0e0e18"/>
+  <!-- Gold gradient background inner -->
+  <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#grad)"/>
+  <!-- Lens aperture blades -->
+  <circle cx="32" cy="32" r="12" fill="#0e0e18" opacity="0.85"/>
+  <!-- Mountain / image icon -->
+  <polyline points="20,40 27,30 34,37 39,31 46,40" stroke="#c9a84c" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
+  <!-- Sun dot -->
+  <circle cx="24" cy="26" r="2.5" fill="#e8c97a"/>
+  <!-- Outer ring tick marks -->
+  <circle cx="32" cy="32" r="22" stroke="#c9a84c" stroke-width="1" stroke-dasharray="2 6" stroke-linecap="round" opacity="0.5"/>
+  <defs>
+    <linearGradient id="grad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1e1830"/>
+      <stop offset="100%" stop-color="#120f20"/>
+    </linearGradient>
+  </defs>
+</svg>
