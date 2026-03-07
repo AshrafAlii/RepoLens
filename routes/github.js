@@ -86,8 +86,15 @@ router.post("/upload", async (req, res, next) => {
 
     const branch = process.env.GITHUB_BRANCH || "main";
 
-    // Sanitise filename: replace spaces, keep extension
-    const safeName = `${Date.now()}_${req.file.originalname.replace(/\s+/g, "_")}`;
+    // Clean filename: remove spaces/special chars, keep original name
+    const ext = req.file.originalname.split(".").pop().toLowerCase();
+    const baseName = req.file.originalname
+      .replace(/\.[^/.]+$/, "")           // remove extension
+      .replace(/[^a-zA-Z0-9\-_. ]/g, "") // remove special chars
+      .replace(/\s+/g, "_")              // spaces to underscores
+      .replace(/_+/g, "_")               // collapse multiple underscores
+      .trim();
+    const safeName = `${baseName}.${ext}`;
     const filePath = `media/${safeName}`;
     const url = `${repoBase()}/contents/${filePath}`;
 
