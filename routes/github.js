@@ -18,6 +18,17 @@ function repoBase() {
   return `${GH_API}/repos/${owner}/${repo}`;
 }
 
+// ─── GET /api/config ─────────────────────────────────────────────────────────
+// Exposes repo config + token to the frontend for direct GitHub uploads
+router.get("/config", (req, res) => {
+  res.json({
+    token: process.env.GITHUB_TOKEN,
+    owner: process.env.GITHUB_USERNAME,
+    repo: process.env.GITHUB_REPO,
+    branch: process.env.GITHUB_BRANCH || "main",
+  });
+});
+
 // ─── GET /api/media ───────────────────────────────────────────────────────────
 // Returns list of files inside the /media folder
 router.get("/media", async (req, res, next) => {
