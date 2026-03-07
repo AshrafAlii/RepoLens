@@ -71,8 +71,17 @@ router.get("/media", async (req, res, next) => {
 // Uploads a single file to the GitHub repo under /media
 router.post("/upload", async (req, res, next) => {
   try {
+    // Detailed diagnostics to catch silent Vercel body issues
     if (!req.file) {
-      return res.status(400).json({ error: "No file provided." });
+      const contentType = req.headers["content-type"] || "none";
+      const contentLength = req.headers["content-length"] || "unknown";
+      return res.status(400).json({
+        error: `No file received. Content-Type: ${contentType}, Content-Length: ${contentLength} bytes. File may exceed the 4.5MB Vercel serverless limit.`,
+      });
+    }
+
+    if (req.file.size === 0) {
+      return res.status(400).json({ error: "Received an empty file." });
     }
 
     const branch = process.env.GITHUB_BRANCH || "main";
@@ -92,9 +101,11 @@ router.post("/upload", async (req, res, next) => {
       sha = existing.sha;
     }
 
+    const base64Content = req.file.buffer.toString("base64");
+
     const body = {
       message: `Upload ${safeName}`,
-      content: req.file.buffer.toString("base64"),
+      content: base64Content,
       branch,
       ...(sha ? { sha } : {}),
     };
