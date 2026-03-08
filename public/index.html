@@ -141,6 +141,73 @@
     .prog-track { height: 2px; background: var(--surface3); border-radius: 100px; overflow: hidden; }
     .prog-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold2)); border-radius: 100px; width: 0%; transition: width .3s; }
 
+    /* ── Floating upload progress pill ─────────────────────── */
+    .upload-pill {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(100px);
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 18px; padding: 14px 20px;
+      min-width: min(340px, calc(100vw - 32px));
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+      z-index: 300; backdrop-filter: blur(16px);
+      transition: transform 0.4s cubic-bezier(0.34,1.4,0.64,1), opacity 0.3s ease;
+      opacity: 0; pointer-events: none;
+    }
+
+    .upload-pill.visible {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1; pointer-events: auto;
+    }
+
+    /* Shift up when bulk bar is visible */
+    body.select-mode .upload-pill { bottom: 96px; }
+
+    .up-top {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px; gap: 12px;
+    }
+
+    .up-icon-wrap {
+      width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0;
+      background: rgba(201,168,76,0.12); border: 1px solid rgba(201,168,76,0.25);
+      display: grid; place-items: center;
+    }
+
+    .up-info { flex: 1; min-width: 0; }
+
+    .up-filename {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: 200px;
+    }
+
+    .up-status {
+      font-size: 11px; color: var(--text3); margin-top: 1px;
+      letter-spacing: 0.03em;
+    }
+
+    .up-pct {
+      font-size: 20px; font-weight: 700;
+      color: var(--gold); font-family: var(--font);
+      letter-spacing: -0.03em; flex-shrink: 0;
+    }
+
+    .up-track {
+      height: 4px; background: var(--surface3);
+      border-radius: 100px; overflow: hidden;
+    }
+
+    .up-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold), var(--gold2));
+      border-radius: 100px; width: 0%;
+      transition: width 0.35s cubic-bezier(0.25,0.46,0.45,0.94);
+    }
+
+    /* Done state */
+    .upload-pill.done .up-icon-wrap { background: rgba(74,222,128,0.12); border-color: rgba(74,222,128,0.3); }
+    .upload-pill.done .up-pct { color: #4ade80; }
+    .upload-pill.done .up-fill { background: linear-gradient(90deg, #22c55e, #4ade80); }
+
     /* ── Stats ───────────────────────────────────────────── */
     .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
 
@@ -1036,7 +1103,26 @@
   </svg>
 </label>
 
-<!-- Bulk select bar -->
+<!-- Floating upload progress pill -->
+<div class="upload-pill" id="uploadPill">
+  <div class="up-top">
+    <div class="up-icon-wrap">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5">
+        <polyline points="16 16 12 12 8 16"/>
+        <line x1="12" y1="12" x2="12" y2="21"/>
+        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+      </svg>
+    </div>
+    <div class="up-info">
+      <div class="up-filename" id="upFilename">Uploading…</div>
+      <div class="up-status" id="upStatus">Preparing…</div>
+    </div>
+    <div class="up-pct" id="upPct">0%</div>
+  </div>
+  <div class="up-track">
+    <div class="up-fill" id="upFill"></div>
+  </div>
+</div>
 <div class="bulk-bar" id="bulkBar">
   <div class="bulk-info">
     <span class="bulk-count" id="bulkCount">0 selected</span>
@@ -1204,6 +1290,23 @@
     return ghConfig;
   }
 
+  // ── Upload pill helpers ────────────────────────────────
+  function pillShow(filename, status, pct, done = false) {
+    const pill = $('uploadPill');
+    $('upFilename').textContent = filename;
+    $('upStatus').textContent = status;
+    $('upPct').textContent = pct + '%';
+    $('upFill').style.width = pct + '%';
+    pill.classList.toggle('done', done);
+    pill.classList.add('visible');
+  }
+
+  function pillHide() {
+    const pill = $('uploadPill');
+    pill.classList.remove('visible');
+    setTimeout(() => { pill.classList.remove('done'); $('upFill').style.width = '0%'; }, 400);
+  }
+
   async function doUpload(files) {
     if (!files?.length) return;
     const total = files.length;
@@ -1215,10 +1318,16 @@
 
     for (let i = 0; i < total; i++) {
       const file = files[i];
+      const fileNum = `${i + 1} / ${total}`;
       const pct = Math.round((i / total) * 100);
+
+      // Update old sidebar bar
       $('progFill').style.width = pct + '%';
       $('progPct').textContent = pct + '%';
       $('progName').textContent = file.name;
+
+      // Update floating pill
+      pillShow(file.name, `File ${fileNum} · ${fmt(file.size)}`, pct);
 
       try {
         // Read file as base64 directly in browser
@@ -1228,6 +1337,9 @@
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
+
+        // Update pill to show uploading state
+        pillShow(file.name, `Uploading ${fileNum}…`, pct);
 
         // Clean filename
         const ext = file.name.split('.').pop().toLowerCase();
@@ -1279,21 +1391,33 @@
         }
 
         successCount++;
+        // Show per-file completion in pill
+        const doneCount = successCount;
+        const newPct = Math.round(((i + 1) / total) * 100);
+        $('progFill').style.width = newPct + '%';
+        $('progPct').textContent = newPct + '%';
+        pillShow(file.name, `Done ${doneCount} / ${total}`, newPct);
+
       } catch (err) {
         toast('✗ ' + file.name + ': ' + err.message, 'error');
+        pillShow(file.name, `✗ Failed — ${err.message}`, Math.round((i / total) * 100));
       }
     }
 
+    // Final done state
     $('progFill').style.width = '100%';
     $('progPct').textContent = '100%';
     $('progName').textContent = 'Done!';
+    pillShow(`${successCount} file${successCount !== 1 ? 's' : ''} uploaded`, 'Complete ✓', 100, true);
+
     setTimeout(() => {
       $('uploadProgress').style.display = 'none';
       $('progFill').style.width = '0%';
       $('fileInput').disabled = false;
       $('fileInput').value = '';
       $('mobInput').value = '';
-    }, 700);
+      pillHide();
+    }, 2200);
 
     if (successCount > 0) toast(`✓ ${successCount} file${successCount > 1 ? 's' : ''} uploaded`);
     loadAll();
