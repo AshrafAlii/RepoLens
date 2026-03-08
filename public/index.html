@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RepoLens</title>
+  <title>Media Vault</title>
 
   <!-- Favicon inline SVG as data URI -->
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
@@ -479,34 +479,6 @@
 
     @keyframes zoomIn { from { transform: scale(0.93); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-    /* ── Modal nav arrows ────────────────────────────────── */
-    .modal-nav {
-      position: absolute; top: 50%; transform: translateY(-50%);
-      width: 52px; height: 52px; border-radius: 50%;
-      background: rgba(255,255,255,0.08); backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.15);
-      color: #fff; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background .2s, transform .2s, opacity .2s;
-      z-index: 10;
-    }
-
-    .modal-nav.prev { left: 20px; }
-    .modal-nav.next { right: 20px; }
-    .modal-nav:hover { background: rgba(201,168,76,0.25); border-color: var(--gold); transform: translateY(-50%) scale(1.08); }
-    .modal-nav.hidden { opacity: 0; pointer-events: none; }
-
-    .modal-counter {
-      font-size: 12px; color: var(--text3); font-weight: 500;
-      letter-spacing: 0.06em; margin-right: 4px; white-space: nowrap;
-    }
-
-    @media (max-width: 680px) {
-      .modal-nav { width: 42px; height: 42px; }
-      .modal-nav.prev { left: 10px; }
-      .modal-nav.next { right: 10px; }
-    }
-
     /* ── Confirm dialog ───────────────────────────────────── */
     .confirm-overlay {
       position: fixed; inset: 0;
@@ -732,7 +704,7 @@
         </svg>
       </div>
       <div class="brand-text">
-        <div class="brand-name">RepoLens</div>
+        <div class="brand-name">Media Vault</div>
         <div class="brand-tagline">GitHub Storage</div>
       </div>
     </div>
@@ -817,7 +789,7 @@
             <circle cx="9.5" cy="10.5" r="1.6" fill="#c9a84c"/>
           </svg>
         </div>
-        <span class="mob-brand-name">RepoLens</span>
+        <span class="mob-brand-name">Media Vault</span>
         <span class="mob-by">by Ashraf</span>
       </div>
       <button class="mob-sync" onclick="loadAll()">
@@ -896,7 +868,6 @@
   <div class="modal-bar">
     <span class="modal-fname" id="modalFname"></span>
     <div class="modal-acts">
-      <span class="modal-counter" id="modalCounter"></span>
       <button class="mbtn download" id="modalDownload">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -922,17 +893,6 @@
     </div>
   </div>
   <div class="modal-media" id="modalMedia"></div>
-  <!-- Navigation arrows -->
-  <button class="modal-nav prev" id="modalPrev" aria-label="Previous">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-      <polyline points="15 18 9 12 15 6"/>
-    </svg>
-  </button>
-  <button class="modal-nav next" id="modalNext" aria-label="Next">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-      <polyline points="9 18 15 12 9 6"/>
-    </svg>
-  </button>
 </div>
 
 <!-- Confirm delete -->
@@ -1003,6 +963,7 @@
   let allMedia = [];
   let activeTab = 'all';
   let pendingDel = null;
+  let modalIdx = null;
 
   // ── Helpers ────────────────────────────────────────────
   const $ = id => document.getElementById(id);
@@ -1239,6 +1200,7 @@
                 </div>`
               : `<img src="${item.download_url}" alt="${item.name}" loading="lazy" />`
             }
+            <span class="tbadge ${item.type === 'video' ? 'vid' : ''}">${item.type === 'video' ? '▶ Video' : '⬜ Photo'}</span>
             <div class="card-overlay">
               <div class="ov-acts">
                 <button class="ov-btn view-btn" data-idx="${idx}">
@@ -1392,6 +1354,7 @@
                   </div>`
                 : `<img src="${item.download_url}" alt="${item.name}" loading="lazy" />`
               }
+              <span class="tbadge ${item.type === 'video' ? 'vid' : ''}">${item.type === 'video' ? '▶ Video' : '⬜ Photo'}</span>
               <div class="card-overlay">
                 <div class="ov-acts">
                   <button class="ov-btn view-btn" data-src="media" data-idx="${idx}">
@@ -1559,66 +1522,31 @@
   }
 
   // ── Modal ──────────────────────────────────────────────
-  let modalItems = [];  // current browsable list
-  let modalIdx = null;
-
   function openModal(idx, items) {
-    // Filter to only image/video for navigation
-    modalItems = items.filter(m => m.type === 'image' || m.type === 'video');
-    // Find actual index in filtered list
     const item = items[idx];
     if (!item) return;
-    const filteredIdx = modalItems.findIndex(m => m.sha === item.sha);
-    modalIdx = filteredIdx >= 0 ? filteredIdx : 0;
-    renderModal();
-    $('modal').classList.add('open');
-    document.body.style.overflow = 'hidden';
-  }
-
-  function renderModal() {
-    const item = modalItems[modalIdx];
-    if (!item) return;
+    modalIdx = idx;
 
     $('modalFname').textContent = item.name;
-    $('modalCounter').textContent = `${modalIdx + 1} / ${modalItems.length}`;
-    $('modal').dataset.src = JSON.stringify(item);
-
-    // Animate out then in
-    const media = $('modalMedia');
-    media.style.opacity = '0';
-    media.innerHTML = item.type === 'video'
+    $('modalMedia').innerHTML = item.type === 'video'
       ? `<video controls autoplay playsinline><source src="${item.download_url}" /></video>`
       : `<img src="${item.download_url}" alt="${item.name}" />`;
-    requestAnimationFrame(() => { media.style.transition = 'opacity .18s'; media.style.opacity = '1'; });
 
-    // Update arrow visibility
-    $('modalPrev').classList.toggle('hidden', modalIdx === 0);
-    $('modalNext').classList.toggle('hidden', modalIdx === modalItems.length - 1);
-  }
-
-  function modalNavigate(dir) {
-    const next = modalIdx + dir;
-    if (next < 0 || next >= modalItems.length) return;
-    modalIdx = next;
-    renderModal();
+    // Store reference so delete button works
+    $('modal').dataset.itemIdx = idx;
+    $('modal').dataset.src = JSON.stringify(item);
+    $('modal').classList.add('open');
+    document.body.style.overflow = 'hidden';
   }
 
   function closeModal() {
     $('modal').classList.remove('open');
     $('modalMedia').innerHTML = '';
     document.body.style.overflow = '';
-    modalItems = [];
-    modalIdx = null;
   }
 
   $('modalClose').addEventListener('click', closeModal);
-  $('modalPrev').addEventListener('click', e => { e.stopPropagation(); modalNavigate(-1); });
-  $('modalNext').addEventListener('click', e => { e.stopPropagation(); modalNavigate(+1); });
-
-  // Click outside closes
-  $('modal').addEventListener('click', e => {
-    if (e.target === $('modal') || e.target === $('modalMedia')) closeModal();
-  });
+  $('modal').addEventListener('click', e => { if (e.target === $('modal')) closeModal(); });
 
   $('modalDownload').addEventListener('click', () => {
     const item = JSON.parse($('modal').dataset.src || 'null');
@@ -1629,24 +1557,10 @@
     const item = JSON.parse($('modal').dataset.src || 'null');
     if (!item) return;
     closeModal();
+    // Find in allMedia
     const idx = allMedia.findIndex(m => m.sha === item.sha);
     if (idx !== -1) openConfirm(idx, allMedia);
   });
-
-  // ── Touch swipe for modal ──────────────────────────────
-  let touchStartX = 0, touchStartY = 0;
-  $('modal').addEventListener('touchstart', e => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }, { passive: true });
-
-  $('modal').addEventListener('touchend', e => {
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    const dy = e.changedTouches[0].clientY - touchStartY;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-      modalNavigate(dx < 0 ? 1 : -1);
-    }
-  }, { passive: true });
 
   // ── Confirm delete ──────────────────────────────────────
   let pendingItem = null;
@@ -1682,10 +1596,6 @@
   });
 
   document.addEventListener('keydown', e => {
-    if ($('modal').classList.contains('open')) {
-      if (e.key === 'ArrowLeft')  { e.preventDefault(); modalNavigate(-1); return; }
-      if (e.key === 'ArrowRight') { e.preventDefault(); modalNavigate(+1); return; }
-    }
     if (e.key === 'Escape') { closeModal(); closePDFModal(); closeConfirm(); }
   });
 
