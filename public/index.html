@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Media Vault</title>
+  <title>RepoLens</title>
 
   <!-- Favicon inline SVG as data URI -->
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
@@ -83,23 +83,12 @@
 
     .logo-mark {
       width: 44px; height: 44px; flex-shrink: 0;
-      background: linear-gradient(135deg, #1e1830 0%, #120f20 100%);
       border-radius: 12px;
-      border: 1px solid rgba(201,168,76,0.3);
       display: grid; place-items: center;
-      box-shadow: 0 4px 20px var(--gold-glow), inset 0 1px 0 rgba(201,168,76,0.1);
       position: relative; overflow: hidden;
     }
 
-    .logo-mark::before {
-      content: '';
-      position: absolute; inset: -1px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, rgba(201,168,76,0.15), transparent 60%);
-      pointer-events: none;
-    }
-
-    .logo-svg { width: 28px; height: 28px; position: relative; z-index: 1; }
+    .logo-svg { width: 44px; height: 44px; border-radius: 12px; display: block; }
 
     .brand-text { display: flex; flex-direction: column; }
 
@@ -473,11 +462,59 @@
     .mbtn.del:hover { background: var(--danger-dim); border-color: var(--danger); color: var(--danger); }
     .mbtn.download:hover { background: var(--gold-dim); border-color: var(--gold); color: var(--gold2); }
 
-    .modal-media { max-width: min(92vw, 960px); max-height: calc(100dvh - 120px); display: flex; align-items: center; justify-content: center; }
-    .modal-media img { max-width: 100%; max-height: calc(100dvh - 120px); border-radius: var(--radius); box-shadow: var(--shadow); object-fit: contain; animation: zoomIn .25s cubic-bezier(.34,1.56,.64,1); }
-    .modal-media video { max-width: 100%; max-height: calc(100dvh - 120px); border-radius: var(--radius); box-shadow: var(--shadow); outline: none; animation: zoomIn .25s cubic-bezier(.34,1.56,.64,1); }
+    .modal-media { 
+      width: 100%; height: calc(100dvh - 80px);
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+
+    .modal-slide {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      will-change: transform, opacity;
+      pointer-events: auto;
+    }
+
+    .modal-slide img {
+      max-width: min(92vw, 960px); max-height: calc(100dvh - 120px);
+      border-radius: var(--radius); box-shadow: var(--shadow);
+      object-fit: contain; user-select: none; -webkit-user-drag: none;
+    }
+
+    .modal-slide video {
+      max-width: min(92vw, 960px); max-height: calc(100dvh - 120px);
+      border-radius: var(--radius); box-shadow: var(--shadow); outline: none;
+    }
 
     @keyframes zoomIn { from { transform: scale(0.93); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    /* ── Modal nav arrows ────────────────────────────────── */
+    .modal-nav {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      width: 52px; height: 52px; border-radius: 50%;
+      background: rgba(255,255,255,0.08); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .2s, transform .2s, opacity .2s;
+      z-index: 10;
+    }
+
+    .modal-nav.prev { left: 20px; }
+    .modal-nav.next { right: 20px; }
+    .modal-nav:hover { background: rgba(201,168,76,0.25); border-color: var(--gold); transform: translateY(-50%) scale(1.08); }
+    .modal-nav.hidden { opacity: 0; pointer-events: none; }
+
+    .modal-counter {
+      font-size: 12px; color: var(--text3); font-weight: 500;
+      letter-spacing: 0.06em; margin-right: 4px; white-space: nowrap;
+    }
+
+    @media (max-width: 680px) {
+      .modal-nav { width: 42px; height: 42px; }
+      .modal-nav.prev { left: 10px; }
+      .modal-nav.next { right: 10px; }
+    }
 
     /* ── Confirm dialog ───────────────────────────────────── */
     .confirm-overlay {
@@ -692,19 +729,23 @@
     <!-- Brand with SVG logo -->
     <div class="brand">
       <div class="logo-mark">
-        <svg class="logo-svg" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- Outer ring dashes -->
-          <circle cx="14" cy="14" r="12.5" stroke="#c9a84c" stroke-width="0.75" stroke-dasharray="2.2 4.4" stroke-linecap="round" opacity="0.55"/>
-          <!-- Frame -->
-          <rect x="5" y="5" width="18" height="18" rx="3.5" stroke="#c9a84c" stroke-width="1.2" fill="none" opacity="0.9"/>
-          <!-- Mountain -->
-          <polyline points="7,19 11.5,12.5 15,16.5 17.5,13.5 21,19" stroke="#e8c97a" stroke-width="1.5" stroke-linejoin="round" fill="none"/>
-          <!-- Sun -->
-          <circle cx="9.5" cy="10.5" r="1.6" fill="#c9a84c"/>
+        <svg class="logo-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="64" height="64" rx="16" fill="#0e0e18"/>
+          <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#logoGrad)"/>
+          <circle cx="32" cy="32" r="12" fill="#0e0e18" opacity="0.85"/>
+          <polyline points="20,40 27,30 34,37 39,31 46,40" stroke="#c9a84c" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
+          <circle cx="24" cy="26" r="2.5" fill="#e8c97a"/>
+          <circle cx="32" cy="32" r="22" stroke="#c9a84c" stroke-width="1" stroke-dasharray="2 6" stroke-linecap="round" opacity="0.5"/>
+          <defs>
+            <linearGradient id="logoGrad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#1e1830"/>
+              <stop offset="100%" stop-color="#120f20"/>
+            </linearGradient>
+          </defs>
         </svg>
       </div>
       <div class="brand-text">
-        <div class="brand-name">Media Vault</div>
+        <div class="brand-name">RepoLens</div>
         <div class="brand-tagline">GitHub Storage</div>
       </div>
     </div>
@@ -782,14 +823,23 @@
     <!-- Mobile top bar -->
     <div class="mob-header">
       <div class="mob-brand">
-        <div class="logo-mark" style="width:34px;height:34px;border-radius:9px;">
-          <svg viewBox="0 0 28 28" fill="none" style="width:20px;height:20px;position:relative;z-index:1;">
-            <rect x="5" y="5" width="18" height="18" rx="3.5" stroke="#c9a84c" stroke-width="1.2" fill="none"/>
-            <polyline points="7,19 11.5,12.5 15,16.5 17.5,13.5 21,19" stroke="#e8c97a" stroke-width="1.5" stroke-linejoin="round" fill="none"/>
-            <circle cx="9.5" cy="10.5" r="1.6" fill="#c9a84c"/>
+        <div class="logo-mark" style="width:38px;height:38px;border-radius:10px;">
+          <svg viewBox="0 0 64 64" fill="none" style="width:38px;height:38px;position:relative;z-index:1;border-radius:10px;">
+            <rect width="64" height="64" rx="16" fill="#0e0e18"/>
+            <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#mobLogoGrad)"/>
+            <circle cx="32" cy="32" r="12" fill="#0e0e18" opacity="0.85"/>
+            <polyline points="20,40 27,30 34,37 39,31 46,40" stroke="#c9a84c" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
+            <circle cx="24" cy="26" r="2.5" fill="#e8c97a"/>
+            <circle cx="32" cy="32" r="22" stroke="#c9a84c" stroke-width="1" stroke-dasharray="2 6" stroke-linecap="round" opacity="0.5"/>
+            <defs>
+              <linearGradient id="mobLogoGrad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#1e1830"/>
+                <stop offset="100%" stop-color="#120f20"/>
+              </linearGradient>
+            </defs>
           </svg>
         </div>
-        <span class="mob-brand-name">Media Vault</span>
+        <span class="mob-brand-name">RepoLens</span>
         <span class="mob-by">by Ashraf</span>
       </div>
       <button class="mob-sync" onclick="loadAll()">
@@ -868,6 +918,7 @@
   <div class="modal-bar">
     <span class="modal-fname" id="modalFname"></span>
     <div class="modal-acts">
+      <span class="modal-counter" id="modalCounter"></span>
       <button class="mbtn download" id="modalDownload">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -893,6 +944,17 @@
     </div>
   </div>
   <div class="modal-media" id="modalMedia"></div>
+  <!-- Navigation arrows -->
+  <button class="modal-nav prev" id="modalPrev" aria-label="Previous">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+  </button>
+  <button class="modal-nav next" id="modalNext" aria-label="Next">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <polyline points="9 18 15 12 9 6"/>
+    </svg>
+  </button>
 </div>
 
 <!-- Confirm delete -->
@@ -963,7 +1025,6 @@
   let allMedia = [];
   let activeTab = 'all';
   let pendingDel = null;
-  let modalIdx = null;
 
   // ── Helpers ────────────────────────────────────────────
   const $ = id => document.getElementById(id);
@@ -1200,7 +1261,6 @@
                 </div>`
               : `<img src="${item.download_url}" alt="${item.name}" loading="lazy" />`
             }
-            <span class="tbadge ${item.type === 'video' ? 'vid' : ''}">${item.type === 'video' ? '▶ Video' : '⬜ Photo'}</span>
             <div class="card-overlay">
               <div class="ov-acts">
                 <button class="ov-btn view-btn" data-idx="${idx}">
@@ -1354,7 +1414,6 @@
                   </div>`
                 : `<img src="${item.download_url}" alt="${item.name}" loading="lazy" />`
               }
-              <span class="tbadge ${item.type === 'video' ? 'vid' : ''}">${item.type === 'video' ? '▶ Video' : '⬜ Photo'}</span>
               <div class="card-overlay">
                 <div class="ov-acts">
                   <button class="ov-btn view-btn" data-src="media" data-idx="${idx}">
@@ -1522,31 +1581,124 @@
   }
 
   // ── Modal ──────────────────────────────────────────────
+  let modalItems = [];
+  let modalIdx = null;
+  let currentSlide = null;
+  let isAnimating = false;
+
   function openModal(idx, items) {
+    modalItems = items.filter(m => m.type === 'image' || m.type === 'video');
     const item = items[idx];
     if (!item) return;
-    modalIdx = idx;
-
-    $('modalFname').textContent = item.name;
-    $('modalMedia').innerHTML = item.type === 'video'
-      ? `<video controls autoplay playsinline><source src="${item.download_url}" /></video>`
-      : `<img src="${item.download_url}" alt="${item.name}" />`;
-
-    // Store reference so delete button works
-    $('modal').dataset.itemIdx = idx;
-    $('modal').dataset.src = JSON.stringify(item);
+    const filteredIdx = modalItems.findIndex(m => m.sha === item.sha);
+    modalIdx = filteredIdx >= 0 ? filteredIdx : 0;
+    $('modalMedia').innerHTML = '';
+    currentSlide = null;
+    isAnimating = false;
+    renderModal(0);
     $('modal').classList.add('open');
     document.body.style.overflow = 'hidden';
   }
 
-  function closeModal() {
-    $('modal').classList.remove('open');
-    $('modalMedia').innerHTML = '';
-    document.body.style.overflow = '';
+  function buildSlide(item) {
+    const el = document.createElement('div');
+    el.className = 'modal-slide';
+    el.innerHTML = item.type === 'video'
+      ? `<video controls autoplay playsinline><source src="${item.download_url}" /></video>`
+      : `<img src="${item.download_url}" alt="${item.name}" draggable="false" />`;
+    return el;
   }
 
-  $('modalClose').addEventListener('click', closeModal);
-  $('modal').addEventListener('click', e => { if (e.target === $('modal')) closeModal(); });
+  function renderModal(dir) {
+    const item = modalItems[modalIdx];
+    if (!item) return;
+
+    $('modalFname').textContent = item.name;
+    $('modalCounter').textContent = `${modalIdx + 1} / ${modalItems.length}`;
+    $('modal').dataset.src = JSON.stringify(item);
+    $('modalPrev').classList.toggle('hidden', modalIdx === 0);
+    $('modalNext').classList.toggle('hidden', modalIdx === modalItems.length - 1);
+
+    const W = window.innerWidth;
+    const newSlide = buildSlide(item);
+    const media = $('modalMedia');
+
+    if (!currentSlide || dir === 0) {
+      // First open — just zoom in
+      media.innerHTML = '';
+      newSlide.style.transform = 'scale(0.92)';
+      newSlide.style.opacity = '0';
+      media.appendChild(newSlide);
+      currentSlide = newSlide;
+      requestAnimationFrame(() => {
+        newSlide.style.transition = 'transform 0.32s cubic-bezier(0.34,1.4,0.64,1), opacity 0.25s ease';
+        newSlide.style.transform = 'scale(1)';
+        newSlide.style.opacity = '1';
+      });
+      return;
+    }
+
+    // Slide in from side
+    isAnimating = true;
+    const outgoing = currentSlide;
+    newSlide.style.transform = `translateX(${dir > 0 ? W : -W}px)`;
+    newSlide.style.opacity = '1';
+    media.appendChild(newSlide);
+    currentSlide = newSlide;
+
+    requestAnimationFrame(() => {
+      const easing = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+      outgoing.style.transition = `transform 0.36s ${easing}, opacity 0.28s ease`;
+      newSlide.style.transition  = `transform 0.36s ${easing}`;
+      outgoing.style.transform = `translateX(${dir > 0 ? -W * 0.3 : W * 0.3}px)`;
+      outgoing.style.opacity = '0';
+      newSlide.style.transform = 'translateX(0)';
+      setTimeout(() => { outgoing.remove(); isAnimating = false; }, 380);
+    });
+  }
+
+  function modalNavigate(dir) {
+    if (isAnimating) return;
+    const next = modalIdx + dir;
+    if (next < 0 || next >= modalItems.length) return;
+    modalIdx = next;
+    renderModal(dir);
+  }
+
+  function closeModal(animateDir) {
+    const modal = $('modal');
+    if (!modal.classList.contains('open')) return;
+
+    if (animateDir === 'down' && currentSlide) {
+      // Swipe-down dismiss — fly off screen
+      currentSlide.style.transition = 'transform 0.32s cubic-bezier(0.55,0,1,0.45), opacity 0.28s ease';
+      currentSlide.style.transform = 'translateY(100vh) scale(0.85)';
+      currentSlide.style.opacity = '0';
+      modal.style.transition = 'opacity 0.32s ease';
+      modal.style.opacity = '0';
+      setTimeout(() => {
+        modal.classList.remove('open');
+        modal.style.opacity = '';
+        modal.style.transition = '';
+        $('modalMedia').innerHTML = '';
+        document.body.style.overflow = '';
+        currentSlide = null; modalItems = []; modalIdx = null;
+      }, 340);
+    } else {
+      modal.classList.remove('open');
+      $('modalMedia').innerHTML = '';
+      document.body.style.overflow = '';
+      currentSlide = null; modalItems = []; modalIdx = null;
+    }
+  }
+
+  $('modalClose').addEventListener('click', () => closeModal());
+  $('modalPrev').addEventListener('click', e => { e.stopPropagation(); modalNavigate(-1); });
+  $('modalNext').addEventListener('click', e => { e.stopPropagation(); modalNavigate(+1); });
+  $('modal').addEventListener('click', e => {
+    // Only close if clicking the dark backdrop itself, not any child
+    if (e.target === $('modal')) closeModal();
+  });
 
   $('modalDownload').addEventListener('click', () => {
     const item = JSON.parse($('modal').dataset.src || 'null');
@@ -1557,10 +1709,105 @@
     const item = JSON.parse($('modal').dataset.src || 'null');
     if (!item) return;
     closeModal();
-    // Find in allMedia
     const idx = allMedia.findIndex(m => m.sha === item.sha);
     if (idx !== -1) openConfirm(idx, allMedia);
   });
+
+  // ── Touch: live-tracking swipe (horizontal = navigate, vertical = dismiss) ──
+  let touch = { startX: 0, startY: 0, dx: 0, dy: 0, active: false, axis: null };
+
+  $('modal').addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) return;
+    touch.startX = e.touches[0].clientX;
+    touch.startY = e.touches[0].clientY;
+    touch.dx = 0; touch.dy = 0;
+    touch.active = true; touch.axis = null;
+  }, { passive: true });
+
+  $('modal').addEventListener('touchmove', e => {
+    if (!touch.active || !currentSlide) return;
+    touch.dx = e.touches[0].clientX - touch.startX;
+    touch.dy = e.touches[0].clientY - touch.startY;
+
+    // Lock axis after first 8px of movement
+    if (!touch.axis) {
+      if (Math.abs(touch.dx) > 8 || Math.abs(touch.dy) > 8) {
+        touch.axis = Math.abs(touch.dx) > Math.abs(touch.dy) ? 'x' : 'y';
+      } else return;
+    }
+
+    if (touch.axis === 'x') {
+      // Horizontal: drag the slide live
+      const resistance = 0.45;
+      const atEdge = (touch.dx > 0 && modalIdx === 0) || (touch.dx < 0 && modalIdx === modalItems.length - 1);
+      const move = atEdge ? touch.dx * resistance : touch.dx;
+      currentSlide.style.transition = 'none';
+      currentSlide.style.transform = `translateX(${move}px)`;
+    } else {
+      // Vertical: drag down to dismiss
+      if (touch.dy < 0) return; // don't allow upward drag
+      const progress = Math.min(touch.dy / 400, 1);
+      const scale = 1 - progress * 0.15;
+      currentSlide.style.transition = 'none';
+      currentSlide.style.transform = `translateY(${touch.dy}px) scale(${scale})`;
+      $('modal').style.background = `rgba(4,4,12,${0.97 - progress * 0.6})`;
+    }
+  }, { passive: true });
+
+  $('modal').addEventListener('touchend', () => {
+    if (!touch.active || !currentSlide) { touch.active = false; return; }
+    touch.active = false;
+    $('modal').style.background = '';
+
+    if (touch.axis === 'x') {
+      const W = window.innerWidth;
+      const threshold = W * 0.28;
+      if (Math.abs(touch.dx) > threshold && !isAnimating) {
+        const dir = touch.dx < 0 ? 1 : -1;
+        const next = modalIdx + dir;
+        if (next >= 0 && next < modalItems.length) {
+          // Snap to next item
+          const easing = 'cubic-bezier(0.25,0.46,0.45,0.94)';
+          currentSlide.style.transition = `transform 0.26s ${easing}`;
+          currentSlide.style.transform = `translateX(${touch.dx < 0 ? -W : W}px)`;
+          modalIdx = next;
+          isAnimating = true;
+          const newSlide = buildSlide(modalItems[modalIdx]);
+          newSlide.style.transform = `translateX(${touch.dx < 0 ? W : -W}px)`;
+          $('modalMedia').appendChild(newSlide);
+          requestAnimationFrame(() => {
+            newSlide.style.transition = `transform 0.26s ${easing}`;
+            newSlide.style.transform = 'translateX(0)';
+          });
+          setTimeout(() => {
+            currentSlide.remove();
+            currentSlide = newSlide;
+            isAnimating = false;
+            // Update header
+            const item = modalItems[modalIdx];
+            $('modalFname').textContent = item.name;
+            $('modalCounter').textContent = `${modalIdx + 1} / ${modalItems.length}`;
+            $('modal').dataset.src = JSON.stringify(item);
+            $('modalPrev').classList.toggle('hidden', modalIdx === 0);
+            $('modalNext').classList.toggle('hidden', modalIdx === modalItems.length - 1);
+          }, 280);
+          return;
+        }
+      }
+      // Snap back
+      currentSlide.style.transition = 'transform 0.3s cubic-bezier(0.34,1.4,0.64,1)';
+      currentSlide.style.transform = 'translateX(0)';
+
+    } else if (touch.axis === 'y') {
+      if (touch.dy > 120) {
+        closeModal('down');
+      } else {
+        // Snap back
+        currentSlide.style.transition = 'transform 0.35s cubic-bezier(0.34,1.4,0.64,1)';
+        currentSlide.style.transform = 'translateY(0) scale(1)';
+      }
+    }
+  }, { passive: true });
 
   // ── Confirm delete ──────────────────────────────────────
   let pendingItem = null;
@@ -1596,6 +1843,10 @@
   });
 
   document.addEventListener('keydown', e => {
+    if ($('modal').classList.contains('open')) {
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); modalNavigate(-1); return; }
+      if (e.key === 'ArrowRight') { e.preventDefault(); modalNavigate(+1); return; }
+    }
     if (e.key === 'Escape') { closeModal(); closePDFModal(); closeConfirm(); }
   });
 
