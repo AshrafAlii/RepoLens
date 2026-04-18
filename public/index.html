@@ -13,6 +13,86 @@
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
   <style>
+    /* ── Login overlay ───────────────────────────────────── */
+    #loginOverlay {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #08080f;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      font-family: 'Geist', sans-serif;
+    }
+
+    #loginOverlay.hidden { display: none; }
+
+    .login-card {
+      background: #0f0e1a; border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 24px; padding: 48px 44px;
+      width: 100%; max-width: 400px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+      animation: loginSlideUp 0.45s cubic-bezier(0.34,1.4,0.64,1);
+    }
+
+    @keyframes loginSlideUp {
+      from { transform: translateY(24px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+
+    .login-logo {
+      display: flex; flex-direction: column; align-items: center;
+      margin-bottom: 36px;
+    }
+
+    .login-brand {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 28px; font-weight: 600;
+      color: #f0ede8; margin-top: 14px; letter-spacing: 0.01em;
+    }
+
+    .login-sub {
+      font-size: 13px; color: #5c5870;
+      margin-top: 4px; letter-spacing: 0.04em;
+    }
+
+    .login-label {
+      display: block; font-size: 11px; font-weight: 600;
+      color: #9b97a0; margin-bottom: 8px;
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+
+    .login-input {
+      width: 100%; padding: 13px 16px;
+      background: #141320; border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px; color: #f0ede8;
+      font-family: 'Geist', sans-serif; font-size: 15px;
+      outline: none; box-sizing: border-box;
+      transition: border-color 0.15s;
+      letter-spacing: 0.06em;
+    }
+
+    .login-input:focus { border-color: rgba(201,168,76,0.45); }
+
+    .login-btn {
+      width: 100%; padding: 13px; margin-top: 16px;
+      background: linear-gradient(135deg, #c9a84c, #e8c97a);
+      border: none; border-radius: 12px;
+      color: #1a1200; font-family: 'Geist', sans-serif;
+      font-size: 14px; font-weight: 700; letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+
+    .login-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+    .login-btn:active { transform: translateY(0); }
+
+    .login-error {
+      margin-top: 12px; padding: 11px 14px;
+      background: rgba(224,80,80,0.1); border: 1px solid rgba(224,80,80,0.25);
+      border-radius: 10px; color: #ff8080;
+      font-size: 13px; text-align: center;
+      display: none;
+    }
+
+    .login-error.show { display: block; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
@@ -892,6 +972,34 @@
   </style>
 </head>
 <body>
+
+<!-- ── Login overlay ─────────────────────────────────────── -->
+<div id="loginOverlay">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg viewBox="0 0 64 64" fill="none" style="width:64px;height:64px;border-radius:16px;">
+        <rect width="64" height="64" rx="16" fill="#0e0e18"/>
+        <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#lg)"/>
+        <circle cx="32" cy="32" r="12" fill="#0e0e18" opacity="0.85"/>
+        <polyline points="20,40 27,30 34,37 39,31 46,40" stroke="#c9a84c" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
+        <circle cx="24" cy="26" r="2.5" fill="#e8c97a"/>
+        <circle cx="32" cy="32" r="22" stroke="#c9a84c" stroke-width="1" stroke-dasharray="2 6" stroke-linecap="round" opacity="0.5"/>
+        <defs>
+          <linearGradient id="lg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#1e1830"/>
+            <stop offset="100%" stop-color="#120f20"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div class="login-brand">RepoLens</div>
+      <div class="login-sub">Your private media vault</div>
+    </div>
+    <label class="login-label" for="loginPass">Password</label>
+    <input class="login-input" id="loginPass" type="password" placeholder="Enter password" autocomplete="current-password" />
+    <button class="login-btn" onclick="submitLogin()">Unlock</button>
+    <div class="login-error" id="loginError">Incorrect password. Try again.</div>
+  </div>
+</div>
 
 <div class="layout">
 
@@ -2310,6 +2418,35 @@
 
   // ── Init ───────────────────────────────────────────────
   loadAll();
+
+  // ── Password gate ──────────────────────────────────────
+  const PASS = 'Ashraf@project'; // ← change this to your password
+
+  function submitLogin() {
+    const val = document.getElementById('loginPass').value;
+    if (val === PASS) {
+      sessionStorage.setItem('rl_auth', '1');
+      document.getElementById('loginOverlay').classList.add('hidden');
+      document.getElementById('loginError').classList.remove('show');
+    } else {
+      document.getElementById('loginError').classList.add('show');
+      document.getElementById('loginPass').value = '';
+      document.getElementById('loginPass').focus();
+    }
+  }
+
+  // Allow Enter key to submit
+  document.getElementById('loginPass').addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitLogin();
+  });
+
+  // Check if already unlocked this session
+  if (sessionStorage.getItem('rl_auth') === '1') {
+    document.getElementById('loginOverlay').classList.add('hidden');
+  }
+
+  // Expose for onclick
+  window.submitLogin = submitLogin;
 </script>
 </body>
 </html>
