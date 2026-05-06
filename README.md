@@ -6,12 +6,12 @@ A minimal full-stack web app to upload photos and videos directly to a GitHub re
 
 ## Features
 
-- 📤 Upload images and videos from any device
-- ☁️ Files are stored in a `media/` folder in your GitHub repo
-- 🖼️ Mobile-optimised grid gallery
-- 🔍 Tap to preview images full-screen or play videos inline
-- 🗑️ Delete files directly from the gallery
-- 💧 Drag-and-drop upload support
+- Upload images and videos from any device
+- Files are stored in a `media/` folder in your GitHub repo
+- Mobile-optimised grid gallery
+- Tap to preview images full-screen or play videos inline
+- Delete files directly from the gallery
+- Drag-and-drop upload support
 
 ---
 
