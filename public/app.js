@@ -2,14 +2,40 @@
   let allMedia = [];
   let activeTab = 'all';
   let pendingDel = null;
+  let searchQuery = '';
+  let sortMode = 'name-asc';
+  const dateCache = new Map();
 
   // ── Helpers ────────────────────────────────────────────
   const $ = id => document.getElementById(id);
+
+  const TAB_TITLES = { all: 'All files', image: 'Photos', video: 'Videos', pdf: 'Documents' };
+  const SORT_LABELS = {
+    'name-asc': 'Name A–Z',
+    'name-desc': 'Name Z–A',
+    'date-desc': 'Newest first',
+    'date-asc': 'Oldest first',
+  };
+  const QUOTA_BYTES = 1024 ** 3; // GitHub's recommended repo size guideline
 
   function fmt(bytes) {
     if (!bytes) return '';
     if (bytes < 1048576) return (bytes / 1024).toFixed(0) + ' KB';
     return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function esc(value) {
+    return String(value).replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  function bytesOf(items) {
+    return items.reduce((sum, item) => sum + (item.size || 0), 0);
+  }
+
+  function matchesSearch(item) {
+    return !searchQuery || item.name.toLowerCase().includes(searchQuery);
   }
 
   // ── Toast ──────────────────────────────────────────────
@@ -225,15 +251,80 @@
   }
 
   // ── Upload ─────────────────────────────────────────────
-  $('fileInput').addEventListener('change', e => doUpload(e.target.files));
-  $('mobInput').addEventListener('change', e => doUpload(e.target.files));
+  $('fileInput').addEventListener('change', e => {
+    doUpload(e.target.files);
+    e.target.value = '';
+  });
 
-  const uploadZone = $('uploadZone');
-  uploadZone.addEventListener('dragover', e => { e.preventDefault(); $('uploadCard').classList.add('drag-over'); });
-  uploadZone.addEventListener('dragleave', () => $('uploadCard').classList.remove('drag-over'));
-  uploadZone.addEventListener('drop', e => { e.preventDefault(); $('uploadCard').classList.remove('drag-over'); doUpload(e.dataTransfer.files); });
+  $('newBtn').addEventListener('click', () => $('fileInput').click());
+
+  // Drag and drop anywhere over the app shell.
+  const appEl = $('app');
+  let dragDepth = 0;
+
+  const hasFiles = e => Array.from(e.dataTransfer?.types || []).includes('Files');
+
+  appEl.addEventListener('dragenter', e => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth += 1;
+    appEl.classList.add('drag-over');
+  });
+
+  appEl.addEventListener('dragover', e => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+
+  appEl.addEventListener('dragleave', () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) appEl.classList.remove('drag-over');
+  });
+
+  appEl.addEventListener('drop', e => {
+    e.preventDefault();
+    dragDepth = 0;
+    appEl.classList.remove('drag-over');
+    doUpload(e.dataTransfer.files);
+  });
+
+  // ── Account menu ───────────────────────────────────────
+  const accountBtn = $('accountBtn');
+  const accountMenu = $('accountMenu');
+
+  function setAccountMenu(open) {
+    accountMenu.hidden = !open;
+    accountBtn.setAttribute('aria-expanded', String(open));
+  }
+
+  accountBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    setAccountMenu(accountMenu.hidden);
+  });
+
+  document.addEventListener('click', e => {
+    if (!accountMenu.hidden && !e.target.closest('.account')) setAccountMenu(false);
+  });
 
   // ── Session ────────────────────────────────────────────
+  // ── Password visibility toggle ─────────────────────────
+  const loginEye = $('loginEye');
+  const loginPassInput = $('loginPass');
+
+  function setPasswordVisible(visible) {
+    loginPassInput.type = visible ? 'text' : 'password';
+    loginEye.classList.toggle('revealed', visible);
+    loginEye.setAttribute('aria-pressed', String(visible));
+    loginEye.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+    loginEye.title = visible ? 'Hide password' : 'Show password';
+  }
+
+  loginEye.addEventListener('click', () => {
+    setPasswordVisible(loginPassInput.type === 'password');
+    loginPassInput.focus();
+  });
+
   // The password is verified by the server (APP_PASSWORD). The browser only
   // holds an HttpOnly session cookie, which JavaScript cannot read.
   function showLogin(message) {
@@ -249,6 +340,7 @@
     $('loginOverlay').classList.add('hidden');
     $('loginError').classList.remove('show');
     $('loginPass').value = '';
+    setPasswordVisible(false);
   }
 
   // Any API call may come back 401 when the session expired or was cleared.
@@ -301,13 +393,10 @@
       .forEach(f => toast(`✗ ${f.name} is ${fmt(f.size)} — the limit is ${MAX_UPLOAD_LABEL}`, 'error'));
 
     if (!queue.length) {
-      $('fileInput').value = '';
-      $('mobInput').value = '';
       return;
     }
 
     const total = queue.length;
-    $('uploadProgress').style.display = 'block';
     $('fileInput').disabled = true;
     let successCount = 0;
     const thumbWarnings = [];
@@ -316,7 +405,6 @@
     try {
       cfg = await getConfig();
     } catch (err) {
-      $('uploadProgress').style.display = 'none';
       $('fileInput').disabled = false;
       toast('✗ ' + err.message, 'error');
       return;
@@ -326,11 +414,6 @@
       const file = queue[i];
       const fileNum = `${i + 1} / ${total}`;
       const pct = Math.round((i / total) * 100);
-
-      // Update old sidebar bar
-      $('progFill').style.width = pct + '%';
-      $('progPct').textContent = pct + '%';
-      $('progName').textContent = file.name;
 
       // Update floating pill
       pillShow(file.name, `File ${fileNum} · ${fmt(file.size)}`, pct);
@@ -370,12 +453,9 @@
         }
 
         successCount++;
-        // Show per-file completion in pill
-        const doneCount = successCount;
+        // Show per-file completion in the pill.
         const newPct = Math.round(((i + 1) / total) * 100);
-        $('progFill').style.width = newPct + '%';
-        $('progPct').textContent = newPct + '%';
-        pillShow(file.name, `Done ${doneCount} / ${total}`, newPct);
+        pillShow(file.name, `Done ${successCount} / ${total}`, newPct);
 
       } catch (err) {
         toast('✗ ' + file.name + ': ' + err.message, 'error');
@@ -384,17 +464,10 @@
     }
 
     // Final done state
-    $('progFill').style.width = '100%';
-    $('progPct').textContent = '100%';
-    $('progName').textContent = 'Done!';
     pillShow(`${successCount} file${successCount !== 1 ? 's' : ''} uploaded`, 'Complete ✓', 100, true);
 
     setTimeout(() => {
-      $('uploadProgress').style.display = 'none';
-      $('progFill').style.width = '0%';
       $('fileInput').disabled = false;
-      $('fileInput').value = '';
-      $('mobInput').value = '';
       pillHide();
     }, 2200);
 
@@ -418,6 +491,7 @@
       }
       if (!res.ok) throw new Error('Failed to load');
       allMedia = await res.json();
+      if (sortMode.startsWith('date')) await ensureDates(allMedia);
       updateCounts();
       renderTab(activeTab);
     } catch (err) {
@@ -433,13 +507,7 @@
     const videos  = allMedia.filter(m => m.type === 'video').length;
     const pdfs    = allMedia.filter(m => m.type === 'pdf').length;
 
-    $('statPhotos').textContent = photos;
-    $('statVideos').textContent = videos;
-    $('statPdfs').textContent   = pdfs;
-
-    $('pageSub').textContent = `${total} file${total !== 1 ? 's' : ''} stored in your vault`;
-
-    // Desktop tabs
+    // Desktop sidebar
     $('dt-cnt-all').textContent   = total;
     $('dt-cnt-image').textContent = photos;
     $('dt-cnt-video').textContent = videos;
@@ -451,7 +519,38 @@
     $('mob-cnt-video').textContent = videos;
     $('mob-cnt-pdf').textContent   = pdfs;
 
+    updateStorage();
     updateThumbButton();
+  }
+
+  // ── Storage meter + notice bar ─────────────────────────
+  let noticeDismissed = false;
+
+  function updateStorage() {
+    const bytes = bytesOf(allMedia);
+    const pct = (bytes / QUOTA_BYTES) * 100;
+
+    $('storageUsed').textContent = fmt(bytes) || '0 KB';
+    $('storageFill').style.width = `${Math.min(100, Math.max(1.5, pct))}%`;
+
+    const notice = $('noticeBar');
+    if (!notice) return;
+
+    if (selectMode) {
+      notice.hidden = false;
+      $('noticeText').innerHTML =
+        'Select the files you want to remove, then confirm in the bar below. ' +
+        '<button class="notice-link" type="button" onclick="toggleSelectMode()">Cancel selection</button>';
+      return;
+    }
+
+    const nearLimit = pct >= 80;
+    notice.hidden = noticeDismissed || !nearLimit;
+    if (nearLimit) {
+      $('noticeText').innerHTML =
+        "You're nearing GitHub's 1 GB repository guideline. " +
+        '<button class="notice-link" type="button" onclick="toggleSelectMode()">Clean up some space</button>';
+    }
   }
 
   // ── Thumbnail backfill ─────────────────────────────────
@@ -549,11 +648,190 @@
   function setTab(tab) {
     activeTab = tab;
     visibleCount = PAGE_SIZE;
-    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    $('contentTitle').textContent = TAB_TITLES[tab] || 'All files';
     renderTab(tab);
   }
 
-  document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+
+  // ── Search ─────────────────────────────────────────────
+  const searchInput = $('searchInput');
+  const searchClear = $('searchClear');
+  let searchTimer;
+
+  function applySearch(value) {
+    searchQuery = value.trim().toLowerCase();
+    searchClear.hidden = !searchQuery;
+    visibleCount = PAGE_SIZE;
+    renderTab(activeTab);
+  }
+
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => applySearch(searchInput.value), 120);
+  });
+
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      searchInput.value = '';
+      applySearch('');
+    }
+  });
+
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    applySearch('');
+    searchInput.focus();
+  });
+
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    }
+  });
+
+  // ── Sorting ────────────────────────────────────────────
+  function byName(a, b) {
+    return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+  }
+
+  function sortItems(items) {
+    const list = [...items];
+
+    if (sortMode === 'name-desc') return list.sort((a, b) => byName(b, a));
+
+    if (sortMode === 'date-desc' || sortMode === 'date-asc') {
+      const dir = sortMode === 'date-asc' ? 1 : -1;
+      list.sort((a, b) => {
+        const da = dateCache.get(a.sha);
+        const db = dateCache.get(b.sha);
+        if (da && db && da !== db) return da < db ? -dir : dir;
+        if (da && !db) return -1;
+        if (!da && db) return 1;
+        return byName(a, b);
+      });
+      return list;
+    }
+
+    return list.sort(byName);
+  }
+
+  function updateSortUI() {
+    $('sortLabel').textContent = SORT_LABELS[sortMode];
+    $('sortBtn').title = `Sort: ${SORT_LABELS[sortMode]}`;
+    document.querySelectorAll('.sort-option').forEach(btn => {
+      const active = btn.dataset.sort === sortMode;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-checked', String(active));
+    });
+  }
+
+  function setSortMenu(open) {
+    $('sortMenu').hidden = !open;
+    $('sortBtn').setAttribute('aria-expanded', String(open));
+  }
+
+  $('sortBtn').addEventListener('click', e => {
+    e.stopPropagation();
+    setSortMenu($('sortMenu').hidden);
+  });
+
+  document.addEventListener('click', e => {
+    if (!$('sortMenu').hidden && !e.target.closest('.sort')) setSortMenu(false);
+  });
+
+  document.querySelectorAll('.sort-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setSort(btn.dataset.sort);
+      setSortMenu(false);
+    });
+  });
+
+  async function setSort(mode) {
+    if (!SORT_LABELS[mode] || mode === sortMode) return;
+
+    sortMode = mode;
+    try { localStorage.setItem('repoLens.sort', mode); } catch { /* ignore */ }
+    updateSortUI();
+
+    if (mode.startsWith('date') && allMedia.length) {
+      $('sortBtn').disabled = true;
+      let anyDates = false;
+      try { anyDates = await ensureDates(allMedia); } catch { anyDates = false; }
+      $('sortBtn').disabled = false;
+
+      if (!anyDates) {
+        sortMode = 'name-asc';
+        try { localStorage.setItem('repoLens.sort', sortMode); } catch { /* ignore */ }
+        updateSortUI();
+        toast('Could not load file dates — sorted by name', 'error');
+      }
+    }
+
+    visibleCount = PAGE_SIZE;
+    renderTab(activeTab);
+  }
+
+  // File dates come from the last commit that touched each path. They are
+  // fetched only when needed and cached by blob SHA for the session.
+  let datesInFlight = null;
+
+  async function ensureDates(items) {
+    if (!items.length) return true;
+    if (items.every(item => dateCache.has(item.sha))) return true;
+
+    if (!datesInFlight) {
+      datesInFlight = (async () => {
+        let cfg;
+        try { cfg = await getConfig(); } catch { return false; }
+
+        const queue = items.filter(item => !dateCache.has(item.sha));
+
+        const worker = async () => {
+          while (queue.length) {
+            const item = queue.shift();
+            try {
+              const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/commits` +
+                `?path=${encodeURIComponent(item.path)}` +
+                `&sha=${encodeURIComponent(cfg.branch || 'main')}&per_page=1`;
+              const res = await fetch(url, { headers: ghHeaders(cfg.token) });
+              if (!res.ok) continue;
+              const commits = await res.json();
+              const iso = commits?.[0]?.commit?.committer?.date ||
+                commits?.[0]?.commit?.author?.date;
+              if (iso) dateCache.set(item.sha, iso);
+            } catch { /* skip this file */ }
+          }
+        };
+
+        const workers = Array.from(
+          { length: Math.min(5, queue.length) },
+          () => worker()
+        );
+        await Promise.all(workers);
+        return items.some(item => dateCache.has(item.sha));
+      })().finally(() => { datesInFlight = null; });
+    }
+
+    return datesInFlight;
+  }
+
+  (function initSortPreference() {
+    try {
+      const saved = localStorage.getItem('repoLens.sort');
+      if (saved && SORT_LABELS[saved]) sortMode = saved;
+    } catch { /* ignore */ }
+    updateSortUI();
+  })();
+
+  // ── Notice bar ─────────────────────────────────────────
+  $('noticeClose').addEventListener('click', () => {
+    $('noticeBar').hidden = true;
+    noticeDismissed = true;
+  });
 
   // ── Skeleton ───────────────────────────────────────────
   function renderSkeletons() {
@@ -726,6 +1004,73 @@
     renderLoadMore(content.querySelector('.gallery-grid'), items);
   }
 
+  // ── PDF rows ───────────────────────────────────────────
+  function pdfRowHtml(item, idx) {
+    return `
+      <div class="pdf-row" data-idx="${idx}" data-sha="${item.sha}" title="Open preview">
+        <div class="pdf-select-check" data-sha="${item.sha}">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div class="pdf-row-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="9" y1="13" x2="15" y2="13"/>
+            <line x1="9" y1="17" x2="13" y2="17"/>
+          </svg>
+        </div>
+        <div class="pdf-row-info">
+          <div class="pdf-row-name">${esc(item.name)}</div>
+          <div class="pdf-row-meta">PDF · ${fmt(item.size) || '—'}</div>
+        </div>
+        <div class="pdf-row-actions">
+          <button class="pdf-act dl" data-url="${esc(item.download_url)}" data-name="${esc(item.name)}" title="Download" aria-label="Download">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Download</span>
+          </button>
+          <button class="pdf-act del pdf-del-btn" data-idx="${idx}" title="Delete" aria-label="Delete">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            </svg>
+            <span>Delete</span>
+          </button>
+        </div>
+      </div>`;
+  }
+
+  function bindPDFRows(root, items) {
+    root.querySelectorAll('.pdf-row').forEach(row => {
+      row.addEventListener('click', e => {
+        if (e.target.closest('.pdf-act')) return;
+        if (selectMode) { toggleItemSelect(row.dataset.sha); return; }
+        openPDFModal(items[+row.dataset.idx]);
+      });
+    });
+    root.querySelectorAll('.pdf-select-check').forEach(chk =>
+      chk.addEventListener('click', e => { e.stopPropagation(); toggleItemSelect(chk.dataset.sha); })
+    );
+    root.querySelectorAll('.pdf-del-btn').forEach(b =>
+      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) openConfirm(+b.dataset.idx, items); })
+    );
+    root.querySelectorAll('.pdf-act.dl').forEach(b =>
+      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) downloadFile(b.dataset.url, b.dataset.name); })
+    );
+  }
+
+  function sectionHead(title, meta) {
+    return `<div class="section-head">
+      <span class="section-title">${title}</span>
+      <span class="section-count">${meta}</span>
+    </div>`;
+  }
+
   // ── PDF list view ──────────────────────────────────────
   function renderPDFList(items) {
     const content = $('contentArea');
@@ -735,68 +1080,25 @@
       return;
     }
 
-    content.innerHTML = `<div class="pdf-list">${
-      items.map((item, idx) => `
-        <div class="pdf-row" data-idx="${idx}" data-sha="${item.sha}" title="Open preview">
-          <div class="pdf-select-check" data-sha="${item.sha}">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-          </div>
-          <div class="pdf-row-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pdf)" stroke-width="1.8">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="9" y1="13" x2="15" y2="13"/>
-              <line x1="9" y1="17" x2="15" y2="17"/>
-            </svg>
-          </div>
-          <div class="pdf-row-info">
-            <div class="pdf-row-name">${item.name}</div>
-            <div class="pdf-row-meta">${fmt(item.size)} · Tap to preview</div>
-          </div>
-          <div class="pdf-row-actions">
-            <button class="pdf-act dl" data-url="${item.download_url}" data-name="${item.name}" title="Download" aria-label="Download">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              <span>Download</span>
-            </button>
-            <button class="pdf-act del pdf-del-btn" data-idx="${idx}" title="Delete" aria-label="Delete">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-              </svg>
-              <span>Delete</span>
-            </button>
-          </div>
-        </div>`).join('')
-    }</div>`;
-
-    content.querySelectorAll('.pdf-row').forEach(row => {
-      row.addEventListener('click', e => {
-        if (e.target.closest('.pdf-act')) return;
-        if (selectMode) { toggleItemSelect(row.dataset.sha); return; }
-        openPDFModal(items[+row.dataset.idx]);
-      });
-    });
-    content.querySelectorAll('.pdf-select-check').forEach(chk =>
-      chk.addEventListener('click', e => { e.stopPropagation(); toggleItemSelect(chk.dataset.sha); })
-    );
-    content.querySelectorAll('.pdf-del-btn').forEach(b =>
-      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) openConfirm(+b.dataset.idx, items); })
-    );
-    content.querySelectorAll('.pdf-act.dl').forEach(b =>
-      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) downloadFile(b.dataset.url, b.dataset.name); })
-    );
+    content.innerHTML = `<div class="pdf-list">${items.map(pdfRowHtml).join('')}</div>`;
+    bindPDFRows(content, items);
   }
 
-  // ── "All" tab: show photos grid + pdf list ─────────────
+  function updateSub(count, bytes) {
+    const noun = count === 1 ? 'file' : 'files';
+    $('pageSub').textContent = searchQuery
+      ? `${count} ${noun} matching “${searchInput.value.trim()}”`
+      : `${count} ${noun} · ${fmt(bytes) || '0 KB'}`;
+  }
+
+  // ── Tabs: grid + documents ─────────────────────────────
   function renderTab(tab) {
+    const visible = sortItems(allMedia.filter(matchesSearch));
+
     if (tab !== 'all') {
-      const items = allMedia.filter(m => m.type === tab);
+      const items = visible.filter(m => m.type === tab);
+      updateSub(items.length, bytesOf(items));
+
       if (tab === 'pdf') {
         currentGridItems = [];
         renderPDFList(items);
@@ -806,12 +1108,14 @@
       return;
     }
 
-    // All tab: show media grid then PDF section
-    const mediaItems = allMedia.filter(m => m.type !== 'pdf');
-    const pdfItems   = allMedia.filter(m => m.type === 'pdf');
+    // All tab: media grid followed by the documents section.
+    const mediaItems = visible.filter(m => m.type !== 'pdf');
+    const pdfItems   = visible.filter(m => m.type === 'pdf');
     const content = $('contentArea');
 
-    if (!allMedia.length) {
+    updateSub(mediaItems.length + pdfItems.length, bytesOf(visible));
+
+    if (!allMedia.length || !visible.length) {
       currentGridItems = [];
       content.innerHTML = emptyState('all');
       return;
@@ -820,91 +1124,39 @@
     currentGridItems = mediaItems;
     const shown = mediaItems.slice(0, visibleCount);
 
-    // Render media section
     let html = '';
 
     if (shown.length) {
-      html += `<div class="gallery-grid" style="margin-bottom: ${pdfItems.length ? '36px' : '0'}">${shown.map(mediaCardHtml).join('')}</div>`;
+      html += `<div class="gallery-grid">${shown.map(mediaCardHtml).join('')}</div>`;
     }
 
-    // PDF section
     if (pdfItems.length) {
-      html += `
-        <div class="section-head">
-          <span class="section-title">Documents</span>
-          <span class="section-count">${pdfItems.length} PDF${pdfItems.length > 1 ? 's' : ''}</span>
-        </div>
-        <div class="pdf-list">${
-          pdfItems.map((item, idx) => `
-            <div class="pdf-row" data-idx="${idx}" data-sha="${item.sha}" title="Open preview">
-              <div class="pdf-select-check" data-sha="${item.sha}">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              </div>
-              <div class="pdf-row-icon">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--pdf)" stroke-width="1.8">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                  <line x1="9" y1="13" x2="15" y2="13"/>
-                  <line x1="9" y1="17" x2="15" y2="17"/>
-                </svg>
-              </div>
-              <div class="pdf-row-info">
-                <div class="pdf-row-name">${item.name}</div>
-                <div class="pdf-row-meta">${fmt(item.size)} · Tap to preview</div>
-              </div>
-              <div class="pdf-row-actions">
-                <button class="pdf-act dl all-pdf-dl" data-url="${item.download_url}" data-name="${item.name}" title="Download" aria-label="Download">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  <span>Download</span>
-                </button>
-                <button class="pdf-act del pdf-del-btn" data-src="pdf" data-idx="${idx}">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                  </svg>
-                  <span>Delete</span>
-                </button>
-              </div>
-            </div>`).join('')
-        }</div>`;
+      html += sectionHead('Documents', `${pdfItems.length} PDF${pdfItems.length > 1 ? 's' : ''}`);
+      html += `<div class="pdf-list">${pdfItems.map(pdfRowHtml).join('')}</div>`;
     }
 
     content.innerHTML = html;
 
-    // Bind events
     bindMediaCards(content, mediaItems);
-
-    content.querySelectorAll('.pdf-del-btn').forEach(b =>
-      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) openConfirm(+b.dataset.idx, pdfItems); })
-    );
-
-    content.querySelectorAll('.all-pdf-dl').forEach(b =>
-      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) downloadFile(b.dataset.url, b.dataset.name); })
-    );
-
-    content.querySelectorAll('.pdf-list .pdf-row').forEach(row => {
-      row.addEventListener('click', e => {
-        if (e.target.closest('.pdf-act')) return;
-        if (selectMode) { toggleItemSelect(row.dataset.sha); return; }
-        openPDFModal(pdfItems[+row.dataset.idx]);
-      });
-    });
-
-    content.querySelectorAll('.pdf-select-check').forEach(chk =>
-      chk.addEventListener('click', e => { e.stopPropagation(); toggleItemSelect(chk.dataset.sha); })
-    );
+    bindPDFRows(content, pdfItems);
 
     renderLoadMore(content.querySelector('.gallery-grid'), mediaItems);
   }
 
   // ── Empty states ───────────────────────────────────────
   function emptyState(tab) {
+    if (searchQuery) {
+      return `<div class="empty">
+        <div class="empty-ico">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <circle cx="11" cy="11" r="7.5"/><line x1="20.5" y1="20.5" x2="16.2" y2="16.2"/>
+          </svg>
+        </div>
+        <div class="empty-title">No matches</div>
+        <p class="empty-desc">Nothing here is named “${esc(searchInput.value.trim())}”. Try a different search.</p>
+      </div>`;
+    }
+
     const msgs = {
       all:   ['Nothing here yet', 'Upload photos, videos, or PDFs to get started.'],
       image: ['No photos yet', 'Upload some images to see them here.'],
@@ -914,7 +1166,7 @@
     const [title, desc] = msgs[tab] || msgs.all;
     return `<div class="empty">
       <div class="empty-ico">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <rect x="3" y="3" width="18" height="18" rx="3"/>
           <circle cx="8.5" cy="8.5" r="1.5"/>
           <polyline points="21 15 16 10 5 21"/>
@@ -935,7 +1187,6 @@
 
     document.body.classList.toggle('select-mode', selectMode);
     $('bulkBar').classList.toggle('visible', selectMode);
-    $('uploadFab').style.display = selectMode ? 'none' : '';
 
     // Highlight select buttons
     ['selectModeBtn', 'mobSelectBtn'].forEach(id => {
@@ -944,6 +1195,7 @@
     });
 
     updateBulkBar();
+    updateStorage();
 
     if (!selectMode) {
       // Clear all checked states visually
