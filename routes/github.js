@@ -64,7 +64,7 @@ function githubHeaders() {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
     "Content-Type": "application/json",
-    "User-Agent": "github-media-vault",
+    "User-Agent": "RepoLens",
   };
 }
 
@@ -74,7 +74,10 @@ function repoBase() {
 }
 
 // ─── GET /api/config ─────────────────────────────────────────────────────────
-// Exposes repo config + token to the frontend for direct GitHub uploads
+// Hands the repo coordinates and token to the browser so large files can be
+// uploaded straight to GitHub, past Vercel's ~4.5 MB serverless body limit.
+// This route sits behind auth.requireAuth — the token is never sent to an
+// unauthenticated visitor.
 router.get("/config", (req, res) => {
   res.json({
     token: process.env.GITHUB_TOKEN,
@@ -171,90 +174,12 @@ router.get("/media", async (req, res, next) => {
   }
 });
 
-// ─── POST /api/upload ─────────────────────────────────────────────────────────
-// Uploads a single file to the GitHub repo under /media
-router.post("/upload", async (req, res, next) => {
-  try {
-    // Detailed diagnostics to catch silent Vercel body issues
-    if (!req.file) {
-      const contentType = req.headers["content-type"] || "none";
-      const contentLength = req.headers["content-length"] || "unknown";
-      return res.status(400).json({
-        error: `No file received. Content-Type: ${contentType}, Content-Length: ${contentLength} bytes. File may exceed the 4.5MB Vercel serverless limit.`,
-      });
-    }
-
-    if (req.file.size === 0) {
-      return res.status(400).json({ error: "Received an empty file." });
-    }
-
-    const branch = process.env.GITHUB_BRANCH || "main";
-
-    // Clean filename: remove spaces/special chars, keep original name
-    const ext = req.file.originalname.split(".").pop().toLowerCase();
-    const baseName = req.file.originalname
-      .replace(/\.[^/.]+$/, "")           // remove extension
-      .replace(/[^a-zA-Z0-9\-_. ]/g, "") // remove special chars
-      .replace(/\s+/g, "_")              // spaces to underscores
-      .replace(/_+/g, "_")               // collapse multiple underscores
-      .trim();
-    const safeName = `${baseName}.${ext}`;
-    const filePath = `${MEDIA_DIR}/${safeName}`;
-    const url = `${repoBase()}/contents/${filePath}`;
-
-    // Check if the file already exists (to get its SHA for update)
-    let sha;
-    const checkRes = await fetch(`${url}?ref=${branch}`, {
-      headers: githubHeaders(),
-    });
-    if (checkRes.ok) {
-      const existing = await checkRes.json();
-      sha = existing.sha;
-    }
-
-    const base64Content = req.file.buffer.toString("base64");
-
-    const body = {
-      message: `Upload ${safeName}`,
-      content: base64Content,
-      branch,
-      ...(sha ? { sha } : {}),
-    };
-
-    const uploadRes = await fetch(url, {
-      method: "PUT",
-      headers: githubHeaders(),
-      body: JSON.stringify(body),
-    });
-
-    if (!uploadRes.ok) {
-      const errBody = await uploadRes.json().catch(() => ({}));
-      throw Object.assign(
-        new Error(errBody.message || "Failed to upload to GitHub"),
-        { status: uploadRes.status }
-      );
-    }
-
-    const result = await uploadRes.json();
-
-    res.json({
-      success: true,
-      name: safeName,
-      path: filePath,
-      download_url: result.content.download_url,
-      type: getFileType(safeName),
-    });
-  } catch (err) {
-    next(err);
-  }
-});
-
 // ─── DELETE /api/thumb ───────────────────────────────────────────────────────
 // Removes a single thumbnail without touching the media file it belongs to.
 router.delete("/thumb", async (req, res, next) => {
   try {
     const { path: thumbPath } = req.body;
-    if (!thumbPath || !thumbPath.startsWith(`${THUMB_DIR}/`)) {
+    if (!thumbPath || !thumbPath.startsWith(`${THUMB_DIR}/`) || thumbPath.includes("..")) {
       return res.status(400).json({ error: "A valid thumbnail path is required." });
     }
 
@@ -299,6 +224,13 @@ router.delete("/media", async (req, res, next) => {
     const { path: filePath, sha } = req.body;
     if (!filePath || !sha) {
       return res.status(400).json({ error: "path and sha are required." });
+    }
+    // Only ever touch files inside the media folder — never the rest of the repo.
+    if (!filePath.startsWith(`${MEDIA_DIR}/`) || filePath.includes("..")) {
+      return res.status(400).json({ error: "Only files in media/ can be deleted." });
+    }
+    if (!/^[0-9a-f]{40,64}$/i.test(sha)) {
+      return res.status(400).json({ error: "Invalid sha." });
     }
 
     const branch = process.env.GITHUB_BRANCH || "main";
