@@ -4,8 +4,7 @@
   let pendingDel = null;
   let searchQuery = '';
   let sortMode = 'name-asc';
-  const captureCache = new Map(); // sha -> date the photo/video was taken
-  const uploadCache = new Map();  // sha -> date the file was added to the repo
+  const uploadCache = new Map(); // sha -> date the file was added to the repo
 
   // ── Helpers ────────────────────────────────────────────
   const $ = id => document.getElementById(id);
@@ -14,10 +13,8 @@
   const SORT_LABELS = {
     'name-asc': 'Name A–Z',
     'name-desc': 'Name Z–A',
-    'upload-desc': 'Newest upload',
-    'upload-asc': 'Oldest upload',
-    'capture-desc': 'Newest capture',
-    'capture-asc': 'Oldest capture',
+    'upload-desc': 'Newest first',
+    'upload-asc': 'Oldest first',
   };
   const QUOTA_BYTES = 1024 ** 3; // GitHub's recommended repo size guideline
 
@@ -702,15 +699,7 @@
   }
 
   function isDateSort(mode) {
-    return mode.startsWith('upload') || mode.startsWith('capture');
-  }
-
-  // Uploads use the commit date. Capture uses the file's own date; files with
-  // no metadata (screenshots, PDFs) have none, so they sort after dated files.
-  function sortDate(item, mode) {
-    return mode.startsWith('capture')
-      ? captureCache.get(item.sha)
-      : uploadCache.get(item.sha);
+    return mode.startsWith('upload');
   }
 
   function sortItems(items) {
@@ -721,8 +710,8 @@
     if (isDateSort(sortMode)) {
       const dir = sortMode.endsWith('-asc') ? 1 : -1;
       list.sort((a, b) => {
-        const da = sortDate(a, sortMode);
-        const db = sortDate(b, sortMode);
+        const da = uploadCache.get(a.sha);
+        const db = uploadCache.get(b.sha);
         if (da && db && da !== db) return da < db ? -dir : dir;
         if (da && !db) return -1;
         if (!da && db) return 1;
@@ -792,11 +781,9 @@
     renderTab(activeTab);
   }
 
-  // Two dates per file, fetched together and cached by blob SHA — in memory for
-  // the session and in localStorage so reloads stay instant:
-  //   upload  — last commit touching the path (when it was added)
-  //   capture — EXIF/QuickTime time the photo or video was taken
-  // The server reads only a small byte range for the metadata.
+  // Upload dates come from the last commit touching each path. They are cached
+  // by blob SHA — in memory for the session and in localStorage so reloads stay
+  // instant.
   const DATE_STORE_KEY = 'repoLens.dates.v2';
   let datesInFlight = null;
 
@@ -806,7 +793,6 @@
       for (const [sha, value] of Object.entries(saved)) {
         if (!sha || !value || typeof value !== 'object') continue;
         if (typeof value.u === 'string' && value.u) uploadCache.set(sha, value.u);
-        if (typeof value.c === 'string' && value.c) captureCache.set(sha, value.c);
       }
     } catch { /* ignore */ }
   })();
@@ -816,7 +802,7 @@
       // Keep the cache bounded — a gallery never needs an unbounded store.
       const entries = [...uploadCache].slice(-500).map(([sha, upload]) => [
         sha,
-        { u: upload, c: captureCache.get(sha) || null },
+        { u: upload },
       ]);
       localStorage.setItem(DATE_STORE_KEY, JSON.stringify(Object.fromEntries(entries)));
     } catch { /* ignore */ }
@@ -842,7 +828,6 @@
               if (!res.ok) continue;
               const info = await res.json();
               if (info?.upload) uploadCache.set(item.sha, info.upload);
-              if (info?.capture) captureCache.set(item.sha, info.capture);
             } catch { /* skip this file */ }
           }
         };
@@ -861,8 +846,13 @@
   (function initSortPreference() {
     try {
       const saved = localStorage.getItem('repoLens.sort');
-      // Older builds used one date mode for both meanings.
-      const legacy = { 'date-desc': 'capture-desc', 'date-asc': 'capture-asc' };
+      // Older builds used different date mode names, including capture modes.
+      const legacy = {
+        'date-desc': 'upload-desc',
+        'date-asc': 'upload-asc',
+        'capture-desc': 'upload-desc',
+        'capture-asc': 'upload-asc',
+      };
       const mode = legacy[saved] || saved;
       if (mode && SORT_LABELS[mode]) {
         sortMode = mode;
