@@ -168,12 +168,19 @@ All routes below require a valid session cookie except the auth routes.
 | `GET` | `/api/session` | — | `{ authenticated, configured }` |
 | `GET` | `/api/config` | ✅ | Repo coordinates + token for direct uploads |
 | `GET` | `/api/media` | ✅ | List `media/` (includes `thumb_url` when a smaller thumb exists) |
+| `GET` | `/api/date` | ✅ | `?path=media/…&sha=…` — `{ capture, upload }` dates from EXIF/QuickTime metadata and the last commit |
 | `GET` | `/api/pdf` | ✅ | `?path=media/…pdf` — streams the PDF inline for in-app preview (`&download=1` for attachment) |
 | `DELETE` | `/api/media` | ✅ | `{ path, sha }` — deletes the file and its thumbnail |
 | `DELETE` | `/api/thumb` | ✅ | `{ path }` — deletes one thumbnail, keeps the media file |
 
 Uploads do not have a server endpoint: the browser PUTs base64 content to
 GitHub's Contents API directly.
+
+Sorting has two date modes. **Newest/Oldest upload** order files by when they were
+added (their last commit). **Newest/Oldest capture** use the file's own date —
+EXIF for photos and the QuickTime/MP4 header for videos — so imported media
+keeps its original date. Screenshots and PDFs have no capture date and are
+listed after dated files.
 
 ### Thumbnails
 

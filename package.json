@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "lint": "node --check server.js && node --check lib/auth.js && node --check routes/github.js && node --check public/app.js",
+    "lint": "node --check server.js && node --check lib/auth.js && node --check lib/media-date.js && node --check routes/github.js && node --check public/app.js",
     "test": "node --test"
   },
   "engines": {

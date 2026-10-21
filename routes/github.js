@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { extractMediaDate } = require("../lib/media-date");
 
 const GH_API = "https://api.github.com";
 
@@ -169,6 +170,131 @@ router.get("/media", async (req, res, next) => {
       });
 
     res.json(media);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── GET /api/date ───────────────────────────────────────────────────────────
+// Returns both dates for a file so the two date sorts share one request:
+//   • capture — EXIF DateTimeOriginal (JPEG/PNG/WebP) or the QuickTime `mvhd`
+//     creation time (MP4/MOV), i.e. when the photo/video was taken
+//   • upload  — the last commit date, i.e. when it was added to the repo
+// Only small byte ranges are read — EXIF sits at the head, and video `moov` is
+// checked at the head then the tail.
+const DATE_EXTENSIONS = /\.(jpe?g|png|gif|webp|mp4|webm|mov|pdf)$/i;
+const METADATA_EXTENSIONS = /\.(jpe?g|png|webp|mp4|mov|m4v)$/i;
+const dateInfoCache = new Map();
+
+function rawUrlFor(filePath) {
+  const branch = process.env.GITHUB_BRANCH || "main";
+  const encodedPath = String(filePath)
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
+  return `https://raw.githubusercontent.com/${process.env.GITHUB_USERNAME}/${process.env.GITHUB_REPO}/${encodeURIComponent(branch)}/${encodedPath}`;
+}
+
+async function fetchRawRange(url, start, end) {
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+      "User-Agent": "RepoLens",
+      Range: `bytes=${start}-${end}`,
+    },
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok && res.status !== 206) {
+    throw Object.assign(new Error(`Could not read file (${res.status})`), {
+      status: res.status,
+    });
+  }
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const contentRange = res.headers.get("content-range") || "";
+  const total = Number(contentRange.split("/")[1]) || buffer.length;
+  return { buffer, total };
+}
+
+async function lastCommitDate(filePath) {
+  const branch = process.env.GITHUB_BRANCH || "main";
+  const url = `${repoBase()}/commits?path=${encodeURIComponent(filePath)}&sha=${encodeURIComponent(branch)}&per_page=1`;
+  const res = await fetch(url, {
+    headers: githubHeaders(),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) return null;
+
+  const commits = await res.json();
+  return (
+    commits?.[0]?.commit?.committer?.date ||
+    commits?.[0]?.commit?.author?.date ||
+    null
+  );
+}
+
+async function getDateInfo(filePath) {
+  // Both dates are returned in one response: the "recently added" sort needs
+  // the commit date even for files that carry a capture date.
+  const uploadPromise = lastCommitDate(filePath).catch(() => null);
+  let capture = null;
+
+  if (METADATA_EXTENSIONS.test(filePath)) {
+    const rawUrl = rawUrlFor(filePath);
+    const isVideo = /\.(mp4|mov|m4v)$/i.test(filePath);
+
+    try {
+      const headBytes = isVideo ? 1024 * 1024 : 256 * 1024;
+      const head = await fetchRawRange(rawUrl, 0, headBytes - 1);
+      capture = extractMediaDate(head.buffer, filePath);
+
+      // QuickTime files often place `moov` at the end of the file. Skip the
+      // second read when Range was ignored and the whole file already arrived.
+      if (
+        !capture && isVideo &&
+        head.total > headBytes && head.buffer.length < head.total
+      ) {
+        const start = Math.max(0, head.total - 1024 * 1024);
+        const tail = await fetchRawRange(rawUrl, start, head.total - 1);
+        capture = extractMediaDate(tail.buffer, filePath);
+      }
+    } catch (err) {
+      // Metadata is best effort — never fail the request over it.
+      console.warn("[date]", filePath, err.message);
+    }
+  }
+
+  const upload = await uploadPromise;
+  return {
+    // Keep `date` as the preferred display/sort value for older clients.
+    date: capture || upload,
+    capture,
+    upload,
+    source: capture ? "capture" : upload ? "upload" : null,
+  };
+}
+
+router.get("/date", async (req, res, next) => {
+  try {
+    const filePath = String(req.query.path || "");
+    if (
+      !filePath.startsWith(`${MEDIA_DIR}/`) ||
+      filePath.includes("..") ||
+      filePath.includes("\\") ||
+      !DATE_EXTENSIONS.test(filePath)
+    ) {
+      return res.status(400).json({ error: "Invalid media path." });
+    }
+
+    // Key on the blob sha so a replaced file is re-read instead of cached.
+    const key = `${filePath}:${String(req.query.sha || "")}`;
+    if (!dateInfoCache.has(key)) {
+      if (dateInfoCache.size > 2000) dateInfoCache.clear();
+      dateInfoCache.set(key, await getDateInfo(filePath));
+    }
+
+    res.json(dateInfoCache.get(key));
   } catch (err) {
     next(err);
   }

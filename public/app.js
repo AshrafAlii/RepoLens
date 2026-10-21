@@ -4,7 +4,8 @@
   let pendingDel = null;
   let searchQuery = '';
   let sortMode = 'name-asc';
-  const dateCache = new Map();
+  const captureCache = new Map(); // sha -> date the photo/video was taken
+  const uploadCache = new Map();  // sha -> date the file was added to the repo
 
   // ── Helpers ────────────────────────────────────────────
   const $ = id => document.getElementById(id);
@@ -13,8 +14,10 @@
   const SORT_LABELS = {
     'name-asc': 'Name A–Z',
     'name-desc': 'Name Z–A',
-    'date-desc': 'Newest first',
-    'date-asc': 'Oldest first',
+    'upload-desc': 'Newest upload',
+    'upload-asc': 'Oldest upload',
+    'capture-desc': 'Newest capture',
+    'capture-asc': 'Oldest capture',
   };
   const QUOTA_BYTES = 1024 ** 3; // GitHub's recommended repo size guideline
 
@@ -491,7 +494,7 @@
       }
       if (!res.ok) throw new Error('Failed to load');
       allMedia = await res.json();
-      if (sortMode.startsWith('date')) await ensureDates(allMedia);
+      if (isDateSort(sortMode)) await ensureDates(allMedia);
       updateCounts();
       renderTab(activeTab);
     } catch (err) {
@@ -698,16 +701,28 @@
     return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
   }
 
+  function isDateSort(mode) {
+    return mode.startsWith('upload') || mode.startsWith('capture');
+  }
+
+  // Uploads use the commit date. Capture uses the file's own date; files with
+  // no metadata (screenshots, PDFs) have none, so they sort after dated files.
+  function sortDate(item, mode) {
+    return mode.startsWith('capture')
+      ? captureCache.get(item.sha)
+      : uploadCache.get(item.sha);
+  }
+
   function sortItems(items) {
     const list = [...items];
 
     if (sortMode === 'name-desc') return list.sort((a, b) => byName(b, a));
 
-    if (sortMode === 'date-desc' || sortMode === 'date-asc') {
-      const dir = sortMode === 'date-asc' ? 1 : -1;
+    if (isDateSort(sortMode)) {
+      const dir = sortMode.endsWith('-asc') ? 1 : -1;
       list.sort((a, b) => {
-        const da = dateCache.get(a.sha);
-        const db = dateCache.get(b.sha);
+        const da = sortDate(a, sortMode);
+        const db = sortDate(b, sortMode);
         if (da && db && da !== db) return da < db ? -dir : dir;
         if (da && !db) return -1;
         if (!da && db) return 1;
@@ -757,11 +772,13 @@
     try { localStorage.setItem('repoLens.sort', mode); } catch { /* ignore */ }
     updateSortUI();
 
-    if (mode.startsWith('date') && allMedia.length) {
+    if (isDateSort(mode) && allMedia.length) {
       $('sortBtn').disabled = true;
+      $('sortLabel').textContent = 'Reading dates…';
       let anyDates = false;
       try { anyDates = await ensureDates(allMedia); } catch { anyDates = false; }
       $('sortBtn').disabled = false;
+      updateSortUI();
 
       if (!anyDates) {
         sortMode = 'name-asc';
@@ -775,44 +792,66 @@
     renderTab(activeTab);
   }
 
-  // File dates come from the last commit that touched each path. They are
-  // fetched only when needed and cached by blob SHA for the session.
+  // Two dates per file, fetched together and cached by blob SHA — in memory for
+  // the session and in localStorage so reloads stay instant:
+  //   upload  — last commit touching the path (when it was added)
+  //   capture — EXIF/QuickTime time the photo or video was taken
+  // The server reads only a small byte range for the metadata.
+  const DATE_STORE_KEY = 'repoLens.dates.v2';
   let datesInFlight = null;
+
+  (function hydrateDates() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DATE_STORE_KEY) || '{}');
+      for (const [sha, value] of Object.entries(saved)) {
+        if (!sha || !value || typeof value !== 'object') continue;
+        if (typeof value.u === 'string' && value.u) uploadCache.set(sha, value.u);
+        if (typeof value.c === 'string' && value.c) captureCache.set(sha, value.c);
+      }
+    } catch { /* ignore */ }
+  })();
+
+  function saveDates() {
+    try {
+      // Keep the cache bounded — a gallery never needs an unbounded store.
+      const entries = [...uploadCache].slice(-500).map(([sha, upload]) => [
+        sha,
+        { u: upload, c: captureCache.get(sha) || null },
+      ]);
+      localStorage.setItem(DATE_STORE_KEY, JSON.stringify(Object.fromEntries(entries)));
+    } catch { /* ignore */ }
+  }
 
   async function ensureDates(items) {
     if (!items.length) return true;
-    if (items.every(item => dateCache.has(item.sha))) return true;
+    if (items.every(item => uploadCache.has(item.sha))) return true;
 
     if (!datesInFlight) {
       datesInFlight = (async () => {
-        let cfg;
-        try { cfg = await getConfig(); } catch { return false; }
-
-        const queue = items.filter(item => !dateCache.has(item.sha));
+        const queue = items.filter(item => !uploadCache.has(item.sha));
 
         const worker = async () => {
           while (queue.length) {
             const item = queue.shift();
             try {
-              const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/commits` +
-                `?path=${encodeURIComponent(item.path)}` +
-                `&sha=${encodeURIComponent(cfg.branch || 'main')}&per_page=1`;
-              const res = await fetch(url, { headers: ghHeaders(cfg.token) });
+              const res = await fetch(
+                `/api/date?path=${encodeURIComponent(item.path)}` +
+                `&sha=${encodeURIComponent(item.sha)}`
+              );
+              if (handleAuthError(res)) return;
               if (!res.ok) continue;
-              const commits = await res.json();
-              const iso = commits?.[0]?.commit?.committer?.date ||
-                commits?.[0]?.commit?.author?.date;
-              if (iso) dateCache.set(item.sha, iso);
+              const info = await res.json();
+              if (info?.upload) uploadCache.set(item.sha, info.upload);
+              if (info?.capture) captureCache.set(item.sha, info.capture);
             } catch { /* skip this file */ }
           }
         };
 
-        const workers = Array.from(
-          { length: Math.min(5, queue.length) },
-          () => worker()
+        await Promise.all(
+          Array.from({ length: Math.min(4, queue.length) }, () => worker())
         );
-        await Promise.all(workers);
-        return items.some(item => dateCache.has(item.sha));
+        saveDates();
+        return items.some(item => uploadCache.has(item.sha));
       })().finally(() => { datesInFlight = null; });
     }
 
@@ -822,7 +861,13 @@
   (function initSortPreference() {
     try {
       const saved = localStorage.getItem('repoLens.sort');
-      if (saved && SORT_LABELS[saved]) sortMode = saved;
+      // Older builds used one date mode for both meanings.
+      const legacy = { 'date-desc': 'capture-desc', 'date-asc': 'capture-asc' };
+      const mode = legacy[saved] || saved;
+      if (mode && SORT_LABELS[mode]) {
+        sortMode = mode;
+        localStorage.setItem('repoLens.sort', mode);
+      }
     } catch { /* ignore */ }
     updateSortUI();
   })();

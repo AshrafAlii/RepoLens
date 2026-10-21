@@ -102,6 +102,21 @@ test("thumb delete refuses paths outside thumbs/", async () => {
   assert.equal(res.status, 400);
 });
 
+test("date endpoint refuses paths outside media/", async () => {
+  const res = await fetch(
+    `${base}/api/date?path=${encodeURIComponent("../.git/config")}`,
+    { headers: { cookie: sessionCookie } }
+  );
+  assert.equal(res.status, 400);
+});
+
+test("date endpoint refuses unsupported file types", async () => {
+  const res = await fetch(`${base}/api/date?path=media/notes.txt`, {
+    headers: { cookie: sessionCookie },
+  });
+  assert.equal(res.status, 400);
+});
+
 test("logout clears the session cookie", async () => {
   const res = await fetch(`${base}/api/logout`, {
     method: "POST",
