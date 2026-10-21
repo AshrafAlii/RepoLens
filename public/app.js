@@ -1337,26 +1337,40 @@
   });
 
   // ── PDF Modal ──────────────────────────────────────────
+  // The preview is proxied through our own origin. GitHub's raw URLs answer
+  // with `application/octet-stream` + `X-Frame-Options: deny`, which makes the
+  // browser download the file instead of rendering it in the frame.
+  function pdfPreviewUrl(item) {
+    return `/api/pdf?path=${encodeURIComponent(item.path)}`;
+  }
+
   function openPDFModal(item) {
     if (!item) return;
     $('pdfModalFname').textContent = item.name;
     $('pdfModal').dataset.src = JSON.stringify(item);
     $('pdfLoading').classList.remove('hidden');
-    $('pdfFrame').src = '';
     $('pdfModal').classList.add('open');
     document.body.style.overflow = 'hidden';
-
-    // Load PDF into iframe
-    $('pdfFrame').onload = () => $('pdfLoading').classList.add('hidden');
-    $('pdfFrame').onerror = () => $('pdfLoading').classList.add('hidden');
-    $('pdfFrame').src = item.download_url;
+    $('pdfFrame').src = pdfPreviewUrl(item);
   }
 
   function closePDFModal() {
     $('pdfModal').classList.remove('open');
-    $('pdfFrame').src = '';
+    $('pdfFrame').src = 'about:blank';
+    $('pdfLoading').classList.add('hidden');
     document.body.style.overflow = '';
   }
+
+  // Hide the spinner once the preview has loaded. The reset to about:blank on
+  // close never matches, so reopening always starts with a fresh spinner.
+  $('pdfFrame').addEventListener('load', () => {
+    if (
+      $('pdfModal').classList.contains('open') &&
+      $('pdfFrame').getAttribute('src') !== 'about:blank'
+    ) {
+      $('pdfLoading').classList.add('hidden');
+    }
+  });
 
   $('pdfModalClose').addEventListener('click', closePDFModal);
   $('pdfModal').addEventListener('click', e => { if (e.target === $('pdfModal')) closePDFModal(); });

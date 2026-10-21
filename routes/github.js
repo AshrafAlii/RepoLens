@@ -174,6 +174,78 @@ router.get("/media", async (req, res, next) => {
   }
 });
 
+// ─── GET /api/pdf ────────────────────────────────────────────────────────────
+// Streams a PDF from the repo with an inline disposition so the browser renders
+// it in its built-in viewer instead of downloading it.
+//
+// raw.githubusercontent.com cannot be used for this: it serves PDFs as
+// application/octet-stream with `X-Frame-Options: deny`, so an iframe either
+// gets blocked or triggers a download. Serving the bytes from our own origin
+// (behind auth) fixes both.
+router.get("/pdf", async (req, res, next) => {
+  const wantsHtml = Boolean(req.accepts(["html", "json"]) === "html");
+  const fail = (status, message) => {
+    if (!wantsHtml) return res.status(status).json({ error: message });
+    res.status(status).type("html").send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Preview unavailable</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:#0a0a0b;color:#a2a2a9;font:14px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    padding:24px;text-align:center}
+  p{max-width:320px}
+</style></head>
+<body><p>${message}<br>Use the Download button above to save the file.</p></body></html>`);
+  };
+
+  try {
+    const filePath = String(req.query.path || "");
+    if (
+      !filePath.startsWith(`${MEDIA_DIR}/`) ||
+      filePath.includes("..") ||
+      filePath.includes("\\") ||
+      !/\.pdf$/i.test(filePath)
+    ) {
+      return fail(400, "A valid PDF path is required.");
+    }
+
+    const branch = process.env.GITHUB_BRANCH || "main";
+    const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
+    const ghRes = await fetch(
+      `${repoBase()}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`,
+      {
+        headers: {
+          ...githubHeaders(),
+          // Raw media type returns the file bytes rather than base64 JSON.
+          Accept: "application/vnd.github.raw",
+        },
+      }
+    );
+
+    if (!ghRes.ok) {
+      const status = ghRes.status === 404 ? 404 : 502;
+      return fail(status, "This PDF could not be loaded from the repository.");
+    }
+
+    const buffer = Buffer.from(await ghRes.arrayBuffer());
+    const fileName = filePath.split("/").pop().replace(/["\\\r\n]/g, "");
+    const download = req.query.download === "1";
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Length", buffer.length);
+    res.setHeader(
+      "Content-Disposition",
+      `${download ? "attachment" : "inline"}; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`
+    );
+    // Private: the response depends on the session cookie and repo access.
+    res.setHeader("Cache-Control", "private, max-age=60");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ─── DELETE /api/thumb ───────────────────────────────────────────────────────
 // Removes a single thumbnail without touching the media file it belongs to.
 router.delete("/thumb", async (req, res, next) => {
