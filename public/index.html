@@ -6,13 +6,13 @@
   <title>RepoLens</title>
 
   <!-- Favicon inline SVG as data URI -->
-  <link rel="icon" type="image/svg+xml" href="logo.svg" />
+  <link rel="icon" type="image/svg+xml" href="logo.svg?v=2" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=2" />
 </head>
 <body>
 
@@ -20,22 +20,9 @@
 <div id="loginOverlay">
   <div class="login-card">
     <div class="login-logo">
-      <svg viewBox="0 0 64 64" fill="none" style="width:64px;height:64px;border-radius:16px;">
-        <rect width="64" height="64" rx="16" fill="#0e0e18"/>
-        <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#lg)"/>
-        <circle cx="32" cy="32" r="12" fill="#0e0e18" opacity="0.85"/>
-        <polyline points="20,40 27,30 34,37 39,31 46,40" stroke="#c9a84c" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
-        <circle cx="24" cy="26" r="2.5" fill="#e8c97a"/>
-        <circle cx="32" cy="32" r="22" stroke="#c9a84c" stroke-width="1" stroke-dasharray="2 6" stroke-linecap="round" opacity="0.5"/>
-        <defs>
-          <linearGradient id="lg" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="#1e1830"/>
-            <stop offset="100%" stop-color="#120f20"/>
-          </linearGradient>
-        </defs>
-      </svg>
+      <img class="login-logo-img" src="logo.svg?v=2" alt="" width="40" height="40" />
       <div class="login-brand">RepoLens</div>
-      <div class="login-sub">Your private media vault</div>
+      <div class="login-sub">Private media vault</div>
     </div>
     <label class="login-label" for="loginPass">Password</label>
     <input class="login-input" id="loginPass" type="password" placeholder="Enter password" autocomplete="current-password" />
@@ -49,27 +36,12 @@
   <!-- ══ Sidebar ══════════════════════════════════════════ -->
   <aside class="sidebar">
 
-    <!-- Brand with SVG logo -->
+    <!-- Brand -->
     <div class="brand">
-      <div class="logo-mark">
-        <svg class="logo-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="64" height="64" rx="16" fill="#0e0e18"/>
-          <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#logoGrad)"/>
-          <circle cx="32" cy="32" r="12" fill="#0e0e18" opacity="0.85"/>
-          <polyline points="20,40 27,30 34,37 39,31 46,40" stroke="#c9a84c" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
-          <circle cx="24" cy="26" r="2.5" fill="#e8c97a"/>
-          <circle cx="32" cy="32" r="22" stroke="#c9a84c" stroke-width="1" stroke-dasharray="2 6" stroke-linecap="round" opacity="0.5"/>
-          <defs>
-            <linearGradient id="logoGrad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#1e1830"/>
-              <stop offset="100%" stop-color="#120f20"/>
-            </linearGradient>
-          </defs>
-        </svg>
-      </div>
+      <img class="logo-mark" src="logo.svg?v=2" alt="" width="28" height="28" />
       <div class="brand-text">
         <div class="brand-name">RepoLens</div>
-        <div class="brand-tagline">GitHub Storage</div>
+        <div class="brand-tagline">GitHub storage</div>
       </div>
     </div>
 
@@ -78,14 +50,14 @@
       <div class="upload-zone" id="uploadZone">
         <input type="file" id="fileInput" accept="image/*,video/*,.pdf" multiple />
         <div class="uz-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
             <polyline points="17 8 12 3 7 8"/>
             <line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
         </div>
-        <div class="uz-title">Upload files</div>
-        <div class="uz-hint">Photos · Videos · PDFs</div>
+        <div class="uz-title">Upload</div>
+        <div class="uz-hint">Photos, videos, PDFs</div>
       </div>
       <div class="upload-progress" id="uploadProgress">
         <div class="prog-row">
@@ -153,26 +125,10 @@
     <!-- Mobile top bar -->
     <div class="mob-header">
       <div class="mob-brand">
-        <div class="logo-mark" style="width:38px;height:38px;border-radius:10px;">
-          <svg viewBox="0 0 64 64" fill="none" style="width:38px;height:38px;position:relative;z-index:1;border-radius:10px;">
-            <rect width="64" height="64" rx="16" fill="#0e0e18"/>
-            <rect x="8" y="8" width="48" height="48" rx="10" fill="url(#mobLogoGrad)"/>
-            <circle cx="32" cy="32" r="12" fill="#0e0e18" opacity="0.85"/>
-            <polyline points="20,40 27,30 34,37 39,31 46,40" stroke="#c9a84c" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
-            <circle cx="24" cy="26" r="2.5" fill="#e8c97a"/>
-            <circle cx="32" cy="32" r="22" stroke="#c9a84c" stroke-width="1" stroke-dasharray="2 6" stroke-linecap="round" opacity="0.5"/>
-            <defs>
-              <linearGradient id="mobLogoGrad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#1e1830"/>
-                <stop offset="100%" stop-color="#120f20"/>
-              </linearGradient>
-            </defs>
-          </svg>
-        </div>
+        <img class="logo-mark" src="logo.svg?v=2" alt="" width="24" height="24" />
         <span class="mob-brand-name">RepoLens</span>
-        <span class="mob-by">by Ashraf</span>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;">
+      <div class="actions mob-actions">
         <button class="mob-sync" id="mobSelectBtn" onclick="toggleSelectMode()">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
@@ -216,10 +172,10 @@
     <div class="topbar">
       <div class="topbar-row">
         <div>
-          <h1 class="page-title">Your <span>Gallery</span></h1>
+          <h1 class="page-title">Gallery</h1>
           <p class="page-sub" id="pageSub">Loading media…</p>
         </div>
-        <div style="display:flex;gap:10px;align-items:center;">
+        <div class="actions">
           <button class="refresh-btn" id="selectModeBtn" onclick="toggleSelectMode()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
@@ -278,7 +234,7 @@
 <div class="upload-pill" id="uploadPill">
   <div class="up-top">
     <div class="up-icon-wrap">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2.5">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
         <polyline points="16 16 12 12 8 16"/>
         <line x1="12" y1="12" x2="12" y2="21"/>
         <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
@@ -323,7 +279,7 @@
           <polyline points="7 10 12 15 17 10"/>
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
-        Download
+        <span>Download</span>
       </button>
       <button class="mbtn del" id="modalDel">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -331,13 +287,13 @@
           <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
           <path d="M10 11v6"/><path d="M14 11v6"/>
         </svg>
-        Delete
+        <span>Delete</span>
       </button>
       <button class="mbtn" id="modalClose">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
-        Close
+        <span>Close</span>
       </button>
     </div>
   </div>
@@ -391,7 +347,7 @@
           <polyline points="7 10 12 15 17 10"/>
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
-        Download
+        <span>Download</span>
       </button>
       <button class="mbtn del" id="pdfModalDel">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -399,13 +355,13 @@
           <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
           <path d="M10 11v6"/><path d="M14 11v6"/>
         </svg>
-        Delete
+        <span>Delete</span>
       </button>
       <button class="mbtn" id="pdfModalClose">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
-        Close
+        <span>Close</span>
       </button>
     </div>
   </div>
@@ -418,6 +374,6 @@
   </div>
 </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

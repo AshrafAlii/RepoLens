@@ -594,7 +594,7 @@
       : `<img src="${item.thumb_url || item.download_url}" alt="${item.name}" loading="lazy" />`;
 
     return `
-        <div class="media-card" data-idx="${idx}" data-sha="${item.sha}" style="animation-delay:${Math.min(idx*0.04,0.5)}s">
+        <div class="media-card" data-idx="${idx}" data-sha="${item.sha}">
           <div class="media-thumb">
             <div class="select-check" data-sha="${item.sha}">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
@@ -604,13 +604,13 @@
             ${preview}
             <div class="card-overlay">
               <div class="ov-acts">
-                <button class="ov-btn view-btn" data-idx="${idx}">
+                <button class="ov-btn view-btn" data-idx="${idx}" title="View" aria-label="View">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                   </svg>
                   <span>View</span>
                 </button>
-                <button class="ov-btn dl-btn" data-url="${item.download_url}" data-name="${item.name}">
+                <button class="ov-btn dl-btn" data-url="${item.download_url}" data-name="${item.name}" title="Download" aria-label="Download">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="7 10 12 15 17 10"/>
@@ -618,7 +618,7 @@
                   </svg>
                   <span>Save</span>
                 </button>
-                <button class="ov-btn del del-btn" data-idx="${idx}">
+                <button class="ov-btn del del-btn" data-idx="${idx}" title="Delete" aria-label="Delete">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -737,7 +737,7 @@
 
     content.innerHTML = `<div class="pdf-list">${
       items.map((item, idx) => `
-        <div class="pdf-row" data-idx="${idx}" data-sha="${item.sha}" style="animation-delay:${Math.min(idx*0.05,0.5)}s;cursor:pointer;" title="Tap to preview">
+        <div class="pdf-row" data-idx="${idx}" data-sha="${item.sha}" title="Open preview">
           <div class="pdf-select-check" data-sha="${item.sha}">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
               <polyline points="20 6 9 17 4 12"/>
@@ -756,7 +756,7 @@
             <div class="pdf-row-meta">${fmt(item.size)} · Tap to preview</div>
           </div>
           <div class="pdf-row-actions">
-            <button class="pdf-act dl" data-url="${item.download_url}" data-name="${item.name}">
+            <button class="pdf-act dl" data-url="${item.download_url}" data-name="${item.name}" title="Download" aria-label="Download">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                 <polyline points="7 10 12 15 17 10"/>
@@ -764,7 +764,7 @@
               </svg>
               <span>Download</span>
             </button>
-            <button class="pdf-act del pdf-del-btn" data-idx="${idx}">
+            <button class="pdf-act del pdf-del-btn" data-idx="${idx}" title="Delete" aria-label="Delete">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="3 6 5 6 21 6"/>
                 <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -830,14 +830,13 @@
     // PDF section
     if (pdfItems.length) {
       html += `
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
-          <span style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);font-family:var(--font);">Documents</span>
-          <div style="flex:1;height:1px;background:var(--border);"></div>
-          <span style="font-size:10px;color:var(--pdf);background:var(--pdf-dim);border:1px solid rgba(224,123,69,0.2);border-radius:100px;padding:2px 8px;">${pdfItems.length} PDF${pdfItems.length > 1 ? 's' : ''}</span>
+        <div class="section-head">
+          <span class="section-title">Documents</span>
+          <span class="section-count">${pdfItems.length} PDF${pdfItems.length > 1 ? 's' : ''}</span>
         </div>
         <div class="pdf-list">${
           pdfItems.map((item, idx) => `
-            <div class="pdf-row" data-idx="${idx}" data-sha="${item.sha}" style="animation-delay:${Math.min(idx*0.05,0.4)}s;cursor:pointer;" title="Tap to preview">
+            <div class="pdf-row" data-idx="${idx}" data-sha="${item.sha}" title="Open preview">
               <div class="pdf-select-check" data-sha="${item.sha}">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
                   <polyline points="20 6 9 17 4 12"/>
@@ -856,7 +855,7 @@
                 <div class="pdf-row-meta">${fmt(item.size)} · Tap to preview</div>
               </div>
               <div class="pdf-row-actions">
-                <button class="pdf-act dl all-pdf-dl" data-url="${item.download_url}" data-name="${item.name}">
+                <button class="pdf-act dl all-pdf-dl" data-url="${item.download_url}" data-name="${item.name}" title="Download" aria-label="Download">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                     <polyline points="7 10 12 15 17 10"/>
