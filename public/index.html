@@ -378,12 +378,40 @@
       gap: 16px;
     }
 
+    /* ── Load more (incremental rendering) ───────────────── */
+    .load-more {
+      display: block;
+      width: 100%;
+      margin: 26px 0 6px;
+      padding: 13px 20px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text2);
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      scroll-margin-top: 140px;
+      transition: background .18s, border-color .18s, color .18s;
+    }
+
+    .load-more:hover {
+      background: var(--surface3);
+      border-color: var(--border2);
+      color: var(--text);
+    }
+
+    .load-more:disabled { opacity: .55; cursor: default; }
+
     /* ── Media card ──────────────────────────────────────── */
     .media-card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius); overflow: hidden; cursor: pointer;
       transition: transform .25s, box-shadow .25s, border-color .25s;
       position: relative; animation: fadeUp .4s ease both;
+      scroll-margin-top: 140px;
     }
 
     @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
@@ -1171,6 +1199,13 @@
             </svg>
             Select
           </button>
+          <button class="refresh-btn" id="thumbBtn" onclick="backfillThumbs()" style="display:none;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36"/>
+              <polyline points="21 3 21 9 15 9"/>
+            </svg>
+            Optimize
+          </button>
           <button class="refresh-btn" onclick="loadAll()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
@@ -1380,6 +1415,203 @@
     toastT = setTimeout(() => el.classList.remove('show'), 3200);
   }
 
+  // ── Thumbnails ─────────────────────────────────────────
+  // Small JPEG previews are generated in the browser and stored in the repo's
+  // `thumbs/` folder, so the gallery never downloads full-size media files.
+  const THUMB_DIR = 'thumbs';
+  const THUMB_MAX_DIM = 480;
+  const THUMB_QUALITY = 0.82;
+
+  // Thumbnail file name for a media file.
+  //   IMG_1.jpeg -> IMG_1__jpeg.jpg      clip.mp4 -> clip__mp4.jpg
+  // The source extension stays in the name so the mapping stays unique even
+  // when two files share a base name (a.png vs a.jpg vs a.mp4).
+  // Keep in sync with thumbNameFor() in routes/github.js.
+  function thumbNameFor(name) {
+    const dot = name.lastIndexOf('.');
+    const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : 'bin';
+    const base = dot > 0 ? name.slice(0, dot) : name;
+    return `${base}__${ext}.jpg`;
+  }
+
+  // Works out whether a file is an image or a video, falling back to the
+  // extension when the browser does not report a useful MIME type.
+  function mediaKind(file) {
+    const type = (file.type || '').toLowerCase();
+    if (type.startsWith('image/')) return 'image';
+    if (type.startsWith('video/')) return 'video';
+    const name = (file.name || '').toLowerCase();
+    if (/\.(jpe?g|png|gif|webp|bmp|avif|heic)$/.test(name)) return 'image';
+    if (/\.(mp4|webm|mov|m4v|avi|mkv)$/.test(name)) return 'video';
+    return null;
+  }
+
+  function canvasToBlob(canvas, type, quality) {
+    return new Promise((resolve, reject) => {
+      if (!canvas.toBlob) return reject(new Error('Canvas export unsupported'));
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Could not export thumbnail'));
+      }, type, quality);
+    });
+  }
+
+  // Decodes an image file, honouring EXIF orientation where supported.
+  async function decodeImage(file) {
+    if (window.createImageBitmap) {
+      try {
+        return await createImageBitmap(file, { imageOrientation: 'from-image' });
+      } catch (err) { /* fall through to the <img> decoder */ }
+    }
+    const url = URL.createObjectURL(file);
+    try {
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Unsupported image format'));
+        img.src = url;
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  // Scales a source (image or video frame) down into a canvas.
+  function drawToCanvas(source, sw, sh) {
+    const scale = Math.min(1, THUMB_MAX_DIM / Math.max(sw, sh));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(sw * scale));
+    canvas.height = Math.max(1, Math.round(sh * scale));
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+
+  async function makeImageThumb(file) {
+    const source = await decodeImage(file);
+    const sw = source.width || source.naturalWidth;
+    const sh = source.height || source.naturalHeight;
+    if (!sw || !sh) throw new Error('Could not read image dimensions');
+    const canvas = drawToCanvas(source, sw, sh);
+    if (source.close) source.close();
+    return await canvasToBlob(canvas, 'image/jpeg', THUMB_QUALITY);
+  }
+
+  // Grabs a frame from a video to use as its poster image. Several seek
+  // positions are tried because some encodes have no keyframe at 0.5s.
+  async function makeVideoPoster(file) {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.preload = 'auto';
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+
+    try {
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('Video load timed out')), 20000);
+        video.onloadeddata = () => { clearTimeout(timer); resolve(); };
+        video.onerror = () => { clearTimeout(timer); reject(new Error('Unsupported video format')); };
+        video.src = url;
+      });
+
+      const duration = isFinite(video.duration) ? video.duration : 0;
+
+      for (const pos of [0.5, 1, 2, 0.1]) {
+        const target = duration ? Math.min(pos, Math.max(0, duration - 0.05)) : pos;
+        try {
+          video.currentTime = target;
+          await new Promise((resolve, reject) => {
+            const timer = setTimeout(() => reject(new Error('Seek timed out')), 8000);
+            video.onseeked = () => { clearTimeout(timer); resolve(); };
+            video.onerror = () => { clearTimeout(timer); reject(new Error('Seek failed')); };
+          });
+        } catch (err) {
+          continue; // try the next position
+        }
+
+        const w = video.videoWidth, h = video.videoHeight;
+        if (!w || !h) continue;
+        const canvas = drawToCanvas(video, w, h);
+        return await canvasToBlob(canvas, 'image/jpeg', 0.78);
+      }
+
+      throw new Error('Could not extract a poster frame');
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  // Returns a thumbnail blob for a media file, or null when it has none.
+  // Returns null when the thumbnail would not be smaller than the source —
+  // small images are already their own thumbnail.
+  async function makeThumb(file) {
+    const kind = mediaKind(file);
+    let blob = null;
+    if (kind === 'image') blob = await makeImageThumb(file);
+    else if (kind === 'video') blob = await makeVideoPoster(file);
+    else return null; // PDFs have no thumbnail
+
+    if (blob && file.size && blob.size >= file.size) return null;
+    return blob;
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = () => reject(new Error('Could not read file'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // ── GitHub Contents API helpers ─────────────────────────
+  function ghHeaders(token, extra) {
+    return {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'github-media-vault',
+      ...(extra || {}),
+    };
+  }
+
+  function ghUrl(cfg, filePath) {
+    return `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
+  }
+
+  // Blob SHA of an existing file, or null when it does not exist yet.
+  async function ghGetSha(cfg, filePath) {
+    const res = await fetch(`${ghUrl(cfg, filePath)}?ref=${cfg.branch}`, {
+      headers: ghHeaders(cfg.token),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.sha || null;
+  }
+
+  // Creates a file, or replaces it when it already exists.
+  async function ghPut(cfg, filePath, base64Content, message) {
+    const sha = await ghGetSha(cfg, filePath);
+    const res = await fetch(ghUrl(cfg, filePath), {
+      method: 'PUT',
+      headers: ghHeaders(cfg.token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        message,
+        content: base64Content,
+        branch: cfg.branch,
+        ...(sha ? { sha } : {}),
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.message || 'GitHub upload failed');
+    }
+    return await res.json();
+  }
+
   // ── Upload ─────────────────────────────────────────────
   $('fileInput').addEventListener('change', e => doUpload(e.target.files));
   $('mobInput').addEventListener('change', e => doUpload(e.target.files));
@@ -1421,6 +1653,7 @@
     $('uploadProgress').style.display = 'block';
     $('fileInput').disabled = true;
     let successCount = 0;
+    const thumbWarnings = [];
 
     const cfg = await getConfig();
 
@@ -1439,63 +1672,36 @@
 
       try {
         // Read file as base64 directly in browser
-        const base64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result.split(',')[1]);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
+        const base64 = await blobToBase64(file);
 
         // Update pill to show uploading state
         pillShow(file.name, `Uploading ${fileNum}…`, pct);
 
         // Clean filename
-        const ext = file.name.split('.').pop().toLowerCase();
+        const ext = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : 'bin';
         const baseName = file.name
           .replace(/\.[^/.]+$/, '')
           .replace(/[^a-zA-Z0-9\-_. ]/g, '')
           .replace(/\s+/g, '_')
           .replace(/_+/g, '_')
-          .trim();
+          .trim() || 'file';
         const safeName = `${baseName}.${ext}`;
         const filePath = `media/${safeName}`;
-        const url = `https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${filePath}`;
-
-        // Check if file already exists (need SHA to overwrite)
-        let sha;
-        const checkRes = await fetch(`${url}?ref=${cfg.branch}`, {
-          headers: {
-            Authorization: `Bearer ${cfg.token}`,
-            Accept: 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-          }
-        });
-        if (checkRes.ok) {
-          const existing = await checkRes.json();
-          sha = existing.sha;
-        }
 
         // Upload directly to GitHub
-        const uploadRes = await fetch(url, {
-          method: 'PUT',
-          headers: {
-            Authorization: `Bearer ${cfg.token}`,
-            Accept: 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-            'Content-Type': 'application/json',
-            'User-Agent': 'github-media-vault',
-          },
-          body: JSON.stringify({
-            message: `Upload ${safeName}`,
-            content: base64,
-            branch: cfg.branch,
-            ...(sha ? { sha } : {}),
-          }),
-        });
+        await ghPut(cfg, filePath, base64, `Upload ${safeName}`);
 
-        if (!uploadRes.ok) {
-          const errBody = await uploadRes.json().catch(() => ({}));
-          throw new Error(errBody.message || 'GitHub upload failed');
+        // Generate a small thumbnail and store it next to the media.
+        // Best effort - a missing thumbnail falls back to the full-size file.
+        try {
+          const thumbBlob = await makeThumb(file);
+          if (thumbBlob) {
+            const thumbB64 = await blobToBase64(thumbBlob);
+            await ghPut(cfg, `${THUMB_DIR}/${thumbNameFor(safeName)}`, thumbB64, `Thumbnail ${safeName}`);
+          }
+        } catch (err) {
+          thumbWarnings.push(`${safeName}: ${err.message}`);
+          console.warn('[thumb]', safeName, err);
         }
 
         successCount++;
@@ -1528,12 +1734,17 @@
     }, 2200);
 
     if (successCount > 0) toast(`✓ ${successCount} file${successCount > 1 ? 's' : ''} uploaded`);
+    if (thumbWarnings.length) {
+      console.warn('[thumb] skipped:', thumbWarnings);
+      toast(`⚠ ${thumbWarnings.length} thumbnail${thumbWarnings.length > 1 ? 's' : ''} skipped`, 'error');
+    }
     loadAll();
   }
 
   // ── Load all media ─────────────────────────────────────
   async function loadAll() {
     renderSkeletons();
+    visibleCount = PAGE_SIZE;
     try {
       const res = await fetch('/api/media');
       if (!res.ok) throw new Error('Failed to load');
@@ -1570,27 +1781,110 @@
     $('mob-cnt-image').textContent = photos;
     $('mob-cnt-video').textContent = videos;
     $('mob-cnt-pdf').textContent   = pdfs;
+
+    updateThumbButton();
+  }
+
+  // ── Thumbnail backfill ─────────────────────────────────
+  // Files uploaded before thumbnails existed (or uploaded through the server
+  // route) have no preview yet. This generates and uploads the missing ones.
+  function missingThumbItems() {
+    return allMedia.filter(m =>
+      (m.type === 'image' || m.type === 'video') && !m.thumb_url
+    );
+  }
+
+  function updateThumbButton() {
+    const btn = $('thumbBtn');
+    if (!btn) return;
+    const missing = missingThumbItems().length;
+    btn.style.display = missing ? '' : 'none';
+    btn.title = missing
+      ? `Create thumbnails for ${missing} file${missing > 1 ? 's' : ''}`
+      : '';
+  }
+
+  async function backfillThumbs() {
+    const btn = $('thumbBtn');
+    const targets = missingThumbItems();
+    if (!targets.length) {
+      toast('All thumbnails are up to date');
+      return;
+    }
+
+    const originalHtml = btn.innerHTML;
+    let done = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    try {
+      const cfg = await getConfig();
+
+      for (const item of targets) {
+        btn.innerHTML = `Optimizing ${done + skipped + failed + 1}/${targets.length}`;
+        try {
+          const res = await fetch(item.download_url);
+          if (!res.ok) throw new Error('Download failed');
+          const blob = await res.blob();
+          const file = new File([blob], item.name, {
+            type: blob.type || 'application/octet-stream',
+          });
+
+          const thumbBlob = await makeThumb(file);
+          if (!thumbBlob) {
+            // The source is already small enough to be its own thumbnail —
+            // drop any leftover thumbnail file for it.
+            skipped++;
+            await deleteThumbFile(item.thumb_path);
+            continue;
+          }
+
+          const thumbB64 = await blobToBase64(thumbBlob);
+          const path = item.thumb_path || `${THUMB_DIR}/${thumbNameFor(item.name)}`;
+          await ghPut(cfg, path, thumbB64, `Thumbnail ${item.name}`);
+          done++;
+        } catch (err) {
+          failed++;
+          console.warn('[thumb]', item.name, err);
+        }
+      }
+
+      await loadAll();
+      const parts = [];
+      if (done) parts.push(`${done} created`);
+      if (skipped) parts.push(`${skipped} already small`);
+      if (failed) parts.push(`${failed} failed`);
+      toast('✓ ' + (parts.join(', ') || 'nothing to do'), failed ? 'error' : 'success');
+    } catch (err) {
+      toast('✗ ' + err.message, 'error');
+    } finally {
+      btn.innerHTML = originalHtml;
+    }
+  }
+
+  // Removes a thumbnail file without touching its media file.
+  async function deleteThumbFile(thumbPath) {
+    if (!thumbPath) return;
+    try {
+      await fetch('/api/thumb', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: thumbPath }),
+      });
+    } catch (err) {
+      console.warn('[thumb] cleanup failed:', err);
+    }
   }
 
   // ── Tabs ───────────────────────────────────────────────
   function setTab(tab) {
     activeTab = tab;
+    visibleCount = PAGE_SIZE;
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
     renderTab(tab);
   }
 
   document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
-
-  // ── Render by tab ──────────────────────────────────────
-  function renderTab(tab) {
-    const items = tab === 'all' ? allMedia : allMedia.filter(m => m.type === tab);
-
-    if (tab === 'pdf') {
-      renderPDFList(items);
-    } else {
-      renderGrid(items);
-    }
-  }
 
   // ── Skeleton ───────────────────────────────────────────
   function renderSkeletons() {
@@ -1607,16 +1901,30 @@
   }
 
   // ── Grid view (photos + videos) ────────────────────────
-  function renderGrid(items) {
-    const content = $('contentArea');
+  // Shared card markup — used by every tab so thumbnails, metadata and
+  // overlays stay identical across views.
+  function mediaCardHtml(item, idx) {
+    const isVideo = item.type === 'video';
 
-    if (!items.length) {
-      content.innerHTML = emptyState(activeTab);
-      return;
-    }
+    // Prefer the small generated thumbnail; fall back to the full-size file.
+    const preview = isVideo
+      ? `<div class="vid-thumb-wrap">
+           ${item.thumb_url
+             ? `<img src="${item.thumb_url}" alt="${item.name}" loading="lazy" />`
+             : `<video src="${item.download_url}#t=0.5" preload="metadata" muted playsinline
+                 onerror="this.parentElement.innerHTML='<div class=vid-ph><div class=vid-ph-icon><svg width=18 height=18 viewBox=&quot;0 0 24 24&quot; fill=none stroke=&quot;var(--gold)&quot; stroke-width=2><polygon points=&quot;5 3 19 12 5 21 5 3&quot;/></svg></div><span>Video</span></div>'">
+                 </video>`}
+           <div class="vid-play-badge">
+             <div class="vid-play-circle">
+               <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none">
+                 <polygon points="6 3 20 12 6 21 6 3"/>
+               </svg>
+             </div>
+           </div>
+         </div>`
+      : `<img src="${item.thumb_url || item.download_url}" alt="${item.name}" loading="lazy" />`;
 
-    content.innerHTML = `<div class="gallery-grid">${
-      items.map((item, idx) => `
+    return `
         <div class="media-card" data-idx="${idx}" data-sha="${item.sha}" style="animation-delay:${Math.min(idx*0.04,0.5)}s">
           <div class="media-thumb">
             <div class="select-check" data-sha="${item.sha}">
@@ -1624,21 +1932,7 @@
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
             </div>
-            ${item.type === 'video'
-              ? `<div class="vid-thumb-wrap">
-                  <video src="${item.download_url}#t=0.5" preload="metadata" muted playsinline
-                    onerror="this.parentElement.innerHTML='<div class=vid-ph><div class=vid-ph-icon><svg width=18 height=18 viewBox=&quot;0 0 24 24&quot; fill=none stroke=&quot;var(--gold)&quot; stroke-width=2><polygon points=&quot;5 3 19 12 5 21 5 3&quot;/></svg></div><span>Video</span></div>'">
-                  </video>
-                  <div class="vid-play-badge">
-                    <div class="vid-play-circle">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none">
-                        <polygon points="6 3 20 12 6 21 6 3"/>
-                      </svg>
-                    </div>
-                  </div>
-                </div>`
-              : `<img src="${item.download_url}" alt="${item.name}" loading="lazy" />`
-            }
+            ${preview}
             <div class="card-overlay">
               <div class="ov-acts">
                 <button class="ov-btn view-btn" data-idx="${idx}">
@@ -1672,27 +1966,95 @@
               <span class="card-size">${fmt(item.size)}</span>
             </div>
           </div>
-        </div>`).join('')
-    }</div>`;
+        </div>`;
+  }
 
-    content.querySelectorAll('.view-btn').forEach(b =>
-      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) openModal(+b.dataset.idx, items); })
-    );
-    content.querySelectorAll('.dl-btn').forEach(b =>
-      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) downloadFile(b.dataset.url, b.dataset.name); })
-    );
-    content.querySelectorAll('.del-btn').forEach(b =>
-      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) openConfirm(+b.dataset.idx, items); })
-    );
-    content.querySelectorAll('.select-check').forEach(chk =>
-      chk.addEventListener('click', e => { e.stopPropagation(); toggleItemSelect(chk.dataset.sha); })
-    );
-    content.querySelectorAll('.media-card').forEach(c =>
+  // Binds the interactive parts of the cards. Elements already bound are
+  // skipped so appended cards never get a second listener.
+  function bindMediaCards(root, items) {
+    root.querySelectorAll('.view-btn:not([data-bound])').forEach(b => {
+      b.setAttribute('data-bound', '1');
+      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) openModal(+b.dataset.idx, items); });
+    });
+    root.querySelectorAll('.dl-btn:not([data-bound])').forEach(b => {
+      b.setAttribute('data-bound', '1');
+      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) downloadFile(b.dataset.url, b.dataset.name); });
+    });
+    root.querySelectorAll('.del-btn:not([data-bound])').forEach(b => {
+      b.setAttribute('data-bound', '1');
+      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) openConfirm(+b.dataset.idx, items); });
+    });
+    root.querySelectorAll('.select-check:not([data-bound])').forEach(chk => {
+      chk.setAttribute('data-bound', '1');
+      chk.addEventListener('click', e => { e.stopPropagation(); toggleItemSelect(chk.dataset.sha); });
+    });
+    root.querySelectorAll('.media-card:not([data-bound])').forEach(c => {
+      c.setAttribute('data-bound', '1');
       c.addEventListener('click', () => {
         if (selectMode) toggleItemSelect(c.dataset.sha);
         else openModal(+c.dataset.idx, items);
-      })
-    );
+      });
+    });
+  }
+
+  // ── Incremental rendering ─────────────────────────────
+  // Only the first PAGE_SIZE cards are rendered; the rest load on demand so a
+  // large vault does not flood the DOM with hundreds of cards at once.
+  const PAGE_SIZE = 60;
+  let visibleCount = PAGE_SIZE;
+  let currentGridItems = [];
+
+  function renderLoadMore(grid, items) {
+    if (!grid || items.length <= visibleCount) return;
+    const btn = document.createElement('button');
+    btn.className = 'load-more';
+    btn.id = 'loadMoreBtn';
+    btn.textContent = `Show more (${items.length - visibleCount} remaining)`;
+    btn.addEventListener('click', loadMore);
+    grid.insertAdjacentElement('afterend', btn);
+  }
+
+  function loadMore() {
+    const grid = $('contentArea').querySelector('.gallery-grid');
+    if (!grid) return;
+
+    const items = currentGridItems;
+    const startIdx = visibleCount;
+    const next = items.slice(startIdx, startIdx + PAGE_SIZE);
+    if (!next.length) return;
+
+    grid.insertAdjacentHTML('beforeend', next.map((item, i) => mediaCardHtml(item, startIdx + i)).join(''));
+    visibleCount += next.length;
+
+    bindMediaCards(grid, items);
+
+    const btn = $('loadMoreBtn');
+    if (btn) {
+      if (items.length <= visibleCount) btn.remove();
+      else btn.textContent = `Show more (${items.length - visibleCount} remaining)`;
+    }
+
+    // Bring the newly added cards into view without yanking the page around.
+    const firstNew = grid.children[startIdx];
+    if (firstNew) firstNew.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function renderGrid(items) {
+    const content = $('contentArea');
+
+    if (!items.length) {
+      currentGridItems = [];
+      content.innerHTML = emptyState(activeTab);
+      return;
+    }
+
+    currentGridItems = items;
+    const shown = items.slice(0, visibleCount);
+
+    content.innerHTML = `<div class="gallery-grid">${shown.map(mediaCardHtml).join('')}</div>`;
+
+    bindMediaCards(content, items);
+    renderLoadMore(content.querySelector('.gallery-grid'), items);
   }
 
   // ── PDF list view ──────────────────────────────────────
@@ -1763,14 +2125,15 @@
   }
 
   // ── "All" tab: show photos grid + pdf list ─────────────
-  // Override renderTab for "all" to show both sections
-  const _origRenderTab = renderTab;
-
   function renderTab(tab) {
     if (tab !== 'all') {
       const items = allMedia.filter(m => m.type === tab);
-      if (tab === 'pdf') renderPDFList(items);
-      else renderGrid(items);
+      if (tab === 'pdf') {
+        currentGridItems = [];
+        renderPDFList(items);
+      } else {
+        renderGrid(items);
+      }
       return;
     }
 
@@ -1780,73 +2143,19 @@
     const content = $('contentArea');
 
     if (!allMedia.length) {
+      currentGridItems = [];
       content.innerHTML = emptyState('all');
       return;
     }
 
+    currentGridItems = mediaItems;
+    const shown = mediaItems.slice(0, visibleCount);
+
     // Render media section
     let html = '';
 
-    if (mediaItems.length) {
-      html += `<div class="gallery-grid" style="margin-bottom: ${pdfItems.length ? '36px' : '0'}">${
-        mediaItems.map((item, idx) => `
-          <div class="media-card" data-src="media" data-idx="${idx}" data-sha="${item.sha}" style="animation-delay:${Math.min(idx*0.04,0.5)}s">
-            <div class="media-thumb">
-              <div class="select-check" data-sha="${item.sha}">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-              </div>
-              ${item.type === 'video'
-                ? `<div class="vid-thumb-wrap">
-                    <video src="${item.download_url}#t=0.5" preload="metadata" muted playsinline
-                      onerror="this.parentElement.innerHTML='<div class=vid-ph><div class=vid-ph-icon><svg width=18 height=18 viewBox=&quot;0 0 24 24&quot; fill=none stroke=&quot;var(--gold)&quot; stroke-width=2><polygon points=&quot;5 3 19 12 5 21 5 3&quot;/></svg></div><span>Video</span></div>'">
-                    </video>
-                    <div class="vid-play-badge">
-                      <div class="vid-play-circle">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none">
-                          <polygon points="6 3 20 12 6 21 6 3"/>
-                        </svg>
-                      </div>
-                    </div>
-                  </div>`
-                : `<img src="${item.download_url}" alt="${item.name}" loading="lazy" />`
-              }
-              <div class="card-overlay">
-                <div class="ov-acts">
-                  <button class="ov-btn view-btn" data-src="media" data-idx="${idx}">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                    </svg>
-                    <span>View</span>
-                  </button>
-                  <button class="ov-btn dl-btn" data-url="${item.download_url}" data-name="${item.name}">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    <span>Save</span>
-                  </button>
-                  <button class="ov-btn del del-btn" data-src="media" data-idx="${idx}">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                      <polyline points="3 6 5 6 21 6"/>
-                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                    </svg>
-                    <span>Delete</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div class="card-footer">
-              <div class="card-name">${item.name}</div>
-              <div class="card-meta">
-                <span class="card-type">${item.type}</span>
-                <span class="card-size">${fmt(item.size)}</span>
-              </div>
-            </div>
-          </div>`).join('')
-      }</div>`;
+    if (shown.length) {
+      html += `<div class="gallery-grid" style="margin-bottom: ${pdfItems.length ? '36px' : '0'}">${shown.map(mediaCardHtml).join('')}</div>`;
     }
 
     // PDF section
@@ -1901,28 +2210,7 @@
     content.innerHTML = html;
 
     // Bind events
-    content.querySelectorAll('.view-btn').forEach(b => {
-      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) openModal(+b.dataset.idx, mediaItems); });
-    });
-
-    content.querySelectorAll('.del-btn').forEach(b => {
-      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) openConfirm(+b.dataset.idx, mediaItems); });
-    });
-
-    content.querySelectorAll('.dl-btn').forEach(b => {
-      b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) downloadFile(b.dataset.url, b.dataset.name); });
-    });
-
-    content.querySelectorAll('.select-check').forEach(chk =>
-      chk.addEventListener('click', e => { e.stopPropagation(); toggleItemSelect(chk.dataset.sha); })
-    );
-
-    content.querySelectorAll('.media-card').forEach(c =>
-      c.addEventListener('click', () => {
-        if (selectMode) toggleItemSelect(c.dataset.sha);
-        else openModal(+c.dataset.idx, mediaItems);
-      })
-    );
+    bindMediaCards(content, mediaItems);
 
     content.querySelectorAll('.pdf-del-btn').forEach(b =>
       b.addEventListener('click', e => { e.stopPropagation(); if (!selectMode) openConfirm(+b.dataset.idx, pdfItems); })
@@ -1943,6 +2231,8 @@
     content.querySelectorAll('.pdf-select-check').forEach(chk =>
       chk.addEventListener('click', e => { e.stopPropagation(); toggleItemSelect(chk.dataset.sha); })
     );
+
+    renderLoadMore(content.querySelector('.gallery-grid'), mediaItems);
   }
 
   // ── Empty states ───────────────────────────────────────

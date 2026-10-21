@@ -6,12 +6,15 @@ A minimal full-stack web app to upload photos and videos directly to a GitHub re
 
 ## Features
 
-- Upload images and videos from any device
-- Files are stored in a `media/` folder in your GitHub repo
-- Mobile-optimised grid gallery
-- Tap to preview images full-screen or play videos inline
-- Delete files directly from the gallery
-- Drag-and-drop upload support
+- 📤 Upload images and videos from any device
+- ☁️ Files are stored in a `media/` folder in your GitHub repo
+- 🖼️ Mobile-optimised grid gallery
+- 🔍 Tap to preview images full-screen or play videos inline
+- 🗑️ Delete files directly from the gallery
+- 💧 Drag-and-drop upload support
+- ⚡ **Auto-generated thumbnails** — a small JPEG preview is generated in the browser on upload and stored in a `thumbs/` folder, so the gallery loads ~99% less data
+- 🎞️ **Video poster frames** — a frame is captured from the video for its thumbnail, instead of relying on the unreliable `#t=` trick
+- ♾️ **Incremental loading** — only the first 60 cards render; the rest load on demand so large vaults stay fast
 
 ---
 
@@ -29,6 +32,23 @@ github-media-vault/
 ├── .gitignore
 └── README.md
 ```
+
+### Repository layout
+
+```
+your-repo/
+├── media/               # Original uploads
+│   ├── IMG_1.jpeg
+│   └── clip.mp4
+└── thumbs/              # Generated thumbnails (created automatically)
+    ├── IMG_1__jpeg.jpg
+    └── clip__mp4.jpg
+```
+
+Thumbnail names are derived from the original file name and keep the source
+extension (`IMG_1.jpeg` → `IMG_1__jpeg.jpg`) so that files sharing a base name
+never collide. A thumbnail is only created when it is actually smaller than the
+original — small images are their own thumbnail.
 
 ---
 
@@ -95,9 +115,20 @@ Open **http://localhost:3000** in your browser (or on your phone if on the same 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/media` | List all files in the `media/` folder |
+| `GET` | `/api/media` | List all files in the `media/` folder (includes `thumb_url` when a thumbnail exists) |
 | `POST` | `/api/upload` | Upload a file (multipart/form-data, field: `file`) |
-| `DELETE` | `/api/media` | Delete a file (`{ path, sha }` in body) |
+| `DELETE` | `/api/media` | Delete a file (`{ path, sha }` in body) — also removes its thumbnail |
+| `DELETE` | `/api/thumb` | Delete a single thumbnail (`{ path }` in body) without touching the media file |
+
+### Thumbnails
+
+Thumbnails are generated in the browser (Canvas) at upload time and uploaded to
+the repo's `thumbs/` folder. The gallery requests the thumbnail and falls back
+to the full-size file when none exists, so existing media keeps working.
+
+If files were uploaded before this feature existed, open the app and click
+**Optimize** in the top bar to generate the missing thumbnails. The button only
+appears when there is something to do.
 
 ---
 
